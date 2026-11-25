@@ -421,6 +421,14 @@ async def run(args: argparse.Namespace) -> int:
     if args.command == "store-use":
         return use_store(args, config)
 
+    if args.command == "serve":
+        from nu.psi.contracts.gamma import HttpResolver
+
+        resolver = HttpResolver()
+        api = resolver.make_http_api(product)
+        resolver.serve(api, args.host, args.port)
+        return 0
+
     if args.command == "sync":
         return await run_sync(args, product)
 
@@ -496,6 +504,11 @@ def build_parser() -> argparse.ArgumentParser:
     store_use.add_argument("name")
     store_use.add_argument("--data", type=Path, dest="store_data")
     store_use.set_defaults(command="store-use")
+
+    serve = subparsers.add_parser("serve", help="HTTP-интерфейс продукта")
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
+    serve.set_defaults(command="serve")
 
     sync = subparsers.add_parser("sync", help="синхронизировать хранилище с источником")
     sync.add_argument("--source", default="filesystem", help="имя плагина-источника")

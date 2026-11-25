@@ -9,6 +9,18 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.8.0] - 2025-11-25
+
+### Added
+
+- **HTTP-интерфейс** (`agoralar serve --host --port`, stdlib, без новых
+  зависимостей): `GET /health`, `GET /schema`, `POST /axes`,
+  `POST /scalars`, `GET|PUT /objects/{id}`, `POST /query`, `GET /plugins`.
+  Ошибки домена — 422 с кодами, невалидный ввод — 400, нет ресурса — 404,
+  неверный метод — 405; тело запроса ограничено 8 МБ.
+- Маршрутизация (`HttpApi`) отделена от транспорта (`make_server`/`serve`),
+  поэтому маршруты тестируются без сокетов, а сервер — на порту 0.
+
 ## [0.7.0] - 2025-11-25
 
 ### Changed
