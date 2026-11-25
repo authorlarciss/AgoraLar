@@ -1,8 +1,7 @@
-"""Публичный API модуля alpha.
+"""Публичный API модуля alpha продукта: DTO плагинов и настроек."""
 
-Наполняется в конкретном проекте: интерфейсы, типы, фабрики.
-"""
+from nu.alpha.public.plugins import PluginKind as PluginKind
+from nu.alpha.public.plugins import PluginManifest as PluginManifest
+from nu.alpha.public.plugins import RejectedPlugin as RejectedPlugin
 
-from nu.alpha.public.events import IEvent as IEvent
-
-__all__ = ["IEvent"]
+__all__ = ["PluginKind", "PluginManifest", "RejectedPlugin"]

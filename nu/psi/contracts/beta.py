@@ -1,8 +1,9 @@
-"""Контракт beta для внешнего использования."""
+"""Контракт beta продукта: реестр плагинов."""
 
-from nu.beta.public import BetaResolver as BetaResolver
-from nu.beta.public import IEventBus as IEventBus
-from nu.beta.public import IProcessor as IProcessor
-from nu.beta.public import IWorkflow as IWorkflow
+from nu.beta.public import ENTRY_GROUPS as ENTRY_GROUPS
+from nu.beta.public import PluginRegistry as PluginRegistry
+from nu.beta.public import RegistryState as RegistryState
+from nu.beta.public import UnknownPluginError as UnknownPluginError
+from nu.beta.public import discover as discover
 
-__all__ = ["IProcessor", "IWorkflow", "IEventBus", "BetaResolver"]
+__all__ = ["ENTRY_GROUPS", "PluginRegistry", "RegistryState", "UnknownPluginError", "discover"]

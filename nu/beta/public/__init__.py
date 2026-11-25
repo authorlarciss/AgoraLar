@@ -1,11 +1,15 @@
-"""Публичный API модуля beta.
+"""Публичный API модуля beta продукта: реестр плагинов."""
 
-Наполняется в конкретном проекте: интерфейсы, типы, фабрики.
-"""
+from nu.beta.public.registry import ENTRY_GROUPS as ENTRY_GROUPS
+from nu.beta.public.registry import PluginRegistry as PluginRegistry
+from nu.beta.public.registry import RegistryState as RegistryState
+from nu.beta.public.registry import UnknownPluginError as UnknownPluginError
+from nu.beta.public.registry import discover as discover
 
-from nu.beta.public.interfaces import IEventBus as IEventBus
-from nu.beta.public.interfaces import IProcessor as IProcessor
-from nu.beta.public.interfaces import IWorkflow as IWorkflow
-from nu.beta.public.resolver import BetaResolver as BetaResolver
-
-__all__ = ["IProcessor", "IWorkflow", "IEventBus", "BetaResolver"]
+__all__ = [
+    "ENTRY_GROUPS",
+    "PluginRegistry",
+    "RegistryState",
+    "UnknownPluginError",
+    "discover",
+]

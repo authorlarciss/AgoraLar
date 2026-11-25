@@ -1,4 +1,4 @@
-.PHONY: help install install-pip lock lint lint-imports contracts contracts-check strip-template dist typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean
+.PHONY: help install core install-pip lock lint lint-imports contracts contracts-check strip-template dist typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean
 
 PYTHON := python3
 VENV := .venv
@@ -12,6 +12,7 @@ PY := $(VENV)/bin/python
 help:
 	@echo "Доступные команды:"
 	@echo "  make install       — установить зависимости через uv sync (рекомендуется)"
+	@echo "  make core          — поставить ядро AxisLar из локального wheel"
 	@echo "  make install-pip   — установить зависимости через venv+pip (fallback)"
 	@echo "  make lock          — обновить uv.lock после изменения зависимостей"
 	@echo "  make lint          — ruff check"
@@ -33,6 +34,14 @@ help:
 	@echo "  make dist          — собрать дистрибутив с переименованным пакетом"
 	@echo "  make run           — запуск nu.main"
 	@echo "  make clean         — удалить кэши и venv"
+
+# Ядро (axislar-core) не в pyproject: репозиторий ядра пока приватный, а
+# uv sync вычищает пакеты, поставленные вручную. Поэтому отдельный таргет.
+CORE_WHEEL ?= $(lastword $(sort $(wildcard ../AxisLar/dist/axislar_core-*.whl)))
+
+core:
+	@test -n "$(CORE_WHEEL)" || (echo "no wheel in ../AxisLar/dist; run 'make dist' in AxisLar" >&2; exit 1)
+	uv pip install "$(CORE_WHEEL)"
 
 install:
 	@command -v uv >/dev/null 2>&1 || (echo "uv not found. Install it or use 'make install-pip'."; exit 1)

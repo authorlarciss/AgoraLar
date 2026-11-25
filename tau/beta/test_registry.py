@@ -1,0 +1,140 @@
+"""Реестр плагинов: обнаружение, проверка контракта, отказы (ADR-0011)."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any
+
+import pytest
+
+from nu.psi.contracts.alpha import PluginKind, PluginManifest
+from nu.psi.contracts.beta import ENTRY_GROUPS, PluginRegistry, UnknownPluginError, discover
+
+CONTRACT = "2"
+
+
+class FakePoint:
+    """Минимальная замена importlib.metadata.EntryPoint."""
+
+    def __init__(self, name: str, group: str, loaded: Any) -> None:
+        self._name = name
+        self._group = group
+        self._loaded = loaded
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def group(self) -> str:
+        return self._group
+
+    def load(self) -> Any:
+        if isinstance(self._loaded, Exception):
+            raise self._loaded
+        return self._loaded
+
+
+def manifest(
+    name: str = "json",
+    kind: PluginKind = PluginKind.STORAGE,
+    requires: str = ">=2,<3",
+    factory: Callable[[Any], Any] | None = None,
+) -> PluginManifest:
+    return PluginManifest(
+        name=name,
+        kind=kind,
+        requires_contract=requires,
+        factory=factory or (lambda _options: object()),
+    )
+
+
+def storage_point(name: str, loaded: Any) -> FakePoint:
+    return FakePoint(name, ENTRY_GROUPS[PluginKind.STORAGE], loaded)
+
+
+def test_compatible_plugin_is_available() -> None:
+    state = discover([storage_point("json", manifest())], core_contract=CONTRACT)
+    assert [item.name for item in state.available] == ["json"]
+    assert state.rejected == ()
+
+
+def test_incompatible_contract_is_rejected_with_reason() -> None:
+    state = discover(
+        [storage_point("future", manifest(name="future", requires=">=3"))],
+        core_contract=CONTRACT,
+    )
+    assert state.available == ()
+    assert "requires contract" in state.rejected[0].reason
+
+
+def test_invalid_specifier_is_rejected() -> None:
+    state = discover(
+        [storage_point("broken", manifest(name="broken", requires="two"))],
+        core_contract=CONTRACT,
+    )
+    assert "invalid requires_contract" in state.rejected[0].reason
+
+
+def test_import_error_does_not_break_discovery() -> None:
+    state = discover(
+        [storage_point("boom", ImportError("no module")), storage_point("json", manifest())],
+        core_contract=CONTRACT,
+    )
+    assert [item.name for item in state.available] == ["json"]
+    assert state.rejected[0].name == "boom"
+
+
+def test_entry_point_may_return_factory_callable() -> None:
+    state = discover([storage_point("lazy", lambda: manifest(name="lazy"))], core_contract=CONTRACT)
+    assert state.available[0].name == "lazy"
+
+
+def test_missing_manifest_is_rejected() -> None:
+    state = discover([storage_point("weird", 42)], core_contract=CONTRACT)
+    assert "must return PluginManifest" in state.rejected[0].reason
+
+
+def test_duplicate_names_are_rejected() -> None:
+    state = discover(
+        [storage_point("json", manifest()), storage_point("json", manifest())],
+        core_contract=CONTRACT,
+    )
+    assert len(state.available) == 1
+    assert state.rejected[0].reason == "duplicate plugin name"
+
+
+def test_foreign_groups_are_ignored() -> None:
+    state = discover([FakePoint("x", "console_scripts", manifest())], core_contract=CONTRACT)
+    assert state.available == () and state.rejected == ()
+
+
+def test_registry_lists_and_reports_rejection_reason() -> None:
+    registry = PluginRegistry(
+        [storage_point("future", manifest(name="future", requires=">=3"))],
+        core_contract=CONTRACT,
+    )
+    assert registry.available == ()
+    assert registry.rejected[0].name == "future"
+    with pytest.raises(UnknownPluginError, match="rejected"):
+        registry.get("future")
+
+
+def test_registry_unknown_plugin() -> None:
+    registry = PluginRegistry([], core_contract=CONTRACT)
+    with pytest.raises(UnknownPluginError, match="not found"):
+        registry.get("json")
+
+
+def test_registry_create_calls_factory_with_options() -> None:
+    seen: dict[str, Any] = {}
+
+    def factory(options: Any) -> str:
+        seen.update(options)
+        return "engine"
+
+    registry = PluginRegistry(
+        [storage_point("json", manifest(factory=factory))], core_contract=CONTRACT
+    )
+    assert registry.create("json", {"path": "vault.json"}) == "engine"
+    assert seen == {"path": "vault.json"}

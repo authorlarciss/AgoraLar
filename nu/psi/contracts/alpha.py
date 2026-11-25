@@ -1,8 +1,7 @@
-"""Контракт alpha для внешнего использования.
+"""Контракт alpha продукта: DTO плагинов."""
 
-Публичный API пока пуст (только IEvent). Наполняется в конкретном проекте.
-"""
+from nu.alpha.public import PluginKind as PluginKind
+from nu.alpha.public import PluginManifest as PluginManifest
+from nu.alpha.public import RejectedPlugin as RejectedPlugin
 
-from nu.alpha.public import IEvent as IEvent
-
-__all__ = ["IEvent"]
+__all__ = ["PluginKind", "PluginManifest", "RejectedPlugin"]

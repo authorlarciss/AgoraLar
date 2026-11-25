@@ -1,15 +1,23 @@
-"""Точка входа текущей версии проекта."""
+"""Точка входа продукта: собрать Product и показать состояние."""
 
-import asyncio
+from __future__ import annotations
 
-from nu.psi.bootstrap import build_application
+import sys
+
+from nu.psi import build_product
+from nu.psi.contracts.mu import __version__
 
 
-def main() -> None:
-    """Запуск проекта."""
-    app = build_application()
-    asyncio.run(app.run())
+def main(argv: list[str] | None = None) -> int:
+    """Показать версию, активное хранилище и найденные плагины."""
+    del argv  # CLI появится в gamma; пока — сводка
+    product = build_product()
+    print(f"AgoraLar {__version__}")
+    print(product.describe())
+    for item in product.registry.rejected:
+        print(f"rejected: {item.describe()}", file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

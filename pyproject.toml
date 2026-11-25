@@ -3,15 +3,17 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "baselar"
+name = "agoralar"
 dynamic = ["version"]
-description = "BaseLar — инвариантный шаблон греческих проектов"
+description = "Продуктовая оболочка ядра AxisLar: интерфейсы, реестр плагинов, готовые хранилища"
 readme = "README.md"
 requires-python = ">=3.13,<3.15"
 authors = [
     { name = "authorlarciss", email = "author.larciss@gmail.com" }
 ]
-dependencies = []
+dependencies = [
+    "packaging>=24.0",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -229,7 +231,6 @@ forbidden_modules = [
 # Блок генерируется: `make contracts` (eta/sync_contracts.py, ADR-0007).
 ignore_imports = [
     # >>> contracts:generated rule5
-    "nu.beta.public.resolver -> nu.beta._internal.workflow",
     "nu.sigma.public.resolver -> nu.sigma._internal.setup",
     # <<< contracts:generated rule5
 ]
