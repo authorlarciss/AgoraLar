@@ -138,3 +138,29 @@ def test_registry_create_calls_factory_with_options() -> None:
     )
     assert registry.create("json", {"path": "vault.json"}) == "engine"
     assert seen == {"path": "vault.json"}
+
+
+def builtin(name: str = "json", requires: str = ">=2,<3") -> PluginManifest:
+    return manifest(name=name, requires=requires)
+
+
+def test_builtin_plugin_is_available() -> None:
+    state = discover([], core_contract=CONTRACT, builtins=[builtin()])
+    assert [item.name for item in state.available] == ["json"]
+    assert state.rejected == ()
+
+
+def test_incompatible_builtin_is_rejected() -> None:
+    state = discover([], core_contract=CONTRACT, builtins=[builtin(requires=">=3")])
+    assert state.available == ()
+    assert "requires contract" in state.rejected[0].reason
+
+
+def test_builtin_colliding_with_entry_point_is_rejected() -> None:
+    state = discover(
+        [storage_point("json", manifest())],
+        core_contract=CONTRACT,
+        builtins=[builtin()],
+    )
+    assert len(state.available) == 1
+    assert state.rejected[0].reason == "duplicate plugin name"

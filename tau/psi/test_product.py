@@ -74,3 +74,9 @@ async def test_product_core_is_usable() -> None:
     product = build_product(registry=PluginRegistry([], core_contract=CONTRACT))
     assert await product.core.count() == 0
     assert (await product.core.schema()) == StorageSchema()
+
+
+def test_default_product_exposes_builtin_json_store() -> None:
+    product = build_product()
+    names = [manifest.name for manifest in product.registry.available]
+    assert "json" in names

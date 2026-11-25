@@ -53,13 +53,31 @@ def discover(
     *,
     core_contract: str,
     product_range: str = CORE_CONTRACT_RANGE,
+    builtins: Iterable[PluginManifest] = (),
 ) -> RegistryState:
-    """Найти плагины и проверить совместимость с контрактом ядра."""
+    """Найти плагины и проверить совместимость с контрактом ядра.
+
+    `builtins` — встроенные бэкенды продукта: у них нет entry points, но
+    проверка контракта для них такая же, как для сторонних плагинов.
+    """
     points = list(entry_points_iter) if entry_points_iter is not None else _installed_points()
 
     available: list[PluginManifest] = []
     rejected: list[RejectedPlugin] = []
     seen: set[str] = set()
+
+    for manifest in builtins:
+        if manifest.name in seen:
+            rejected.append(
+                RejectedPlugin(manifest.name, manifest.kind.value, "duplicate plugin name")
+            )
+            continue
+        seen.add(manifest.name)
+        reason = _compatibility_error(manifest.requires_contract, core_contract, product_range)
+        if reason is not None:
+            rejected.append(RejectedPlugin(manifest.name, manifest.kind.value, reason))
+            continue
+        available.append(manifest)
 
     for point in points:
         kind = _kind_for_group(point.group)
@@ -77,17 +95,17 @@ def discover(
             rejected.append(RejectedPlugin(point.name, kind.value, f"import failed: {error!r}"))
             continue
 
-        manifest = _as_manifest(loaded, point.name, kind)
-        if isinstance(manifest, RejectedPlugin):
-            rejected.append(manifest)
+        resolved = _as_manifest(loaded, point.name, kind)
+        if isinstance(resolved, RejectedPlugin):
+            rejected.append(resolved)
             continue
 
-        reason = _compatibility_error(manifest.requires_contract, core_contract, product_range)
+        reason = _compatibility_error(resolved.requires_contract, core_contract, product_range)
         if reason is not None:
             rejected.append(RejectedPlugin(point.name, kind.value, reason))
             continue
 
-        available.append(manifest)
+        available.append(resolved)
 
     available.sort(key=lambda manifest: (manifest.kind.value, manifest.name))
     rejected.sort(key=lambda item: (item.kind, item.name))
@@ -154,11 +172,13 @@ class PluginRegistry:
         *,
         core_contract: str,
         product_range: str = CORE_CONTRACT_RANGE,
+        builtins: Iterable[PluginManifest] = (),
     ) -> None:
         self._state = discover(
             entry_points_iter,
             core_contract=core_contract,
             product_range=product_range,
+            builtins=builtins,
         )
 
     @property

@@ -13,6 +13,7 @@ from typing import Any, cast
 from axislar_core.contracts import CONTRACT_VERSION, Core, IStorageEngine, build_core
 
 from nu.psi.contracts.beta import PluginRegistry
+from nu.psi.contracts.delta import builtin_plugins
 from nu.psi.contracts.sigma import LoggingConfig, SigmaResolver
 
 #: Имя встроенного бэкенда — его даёт само ядро, без плагинов.
@@ -44,7 +45,9 @@ def build_product(
     поднимается `UnknownPluginError` с причиной.
     """
     _setup_logging()
-    registry = registry or PluginRegistry(core_contract=CONTRACT_VERSION)
+    registry = registry or PluginRegistry(
+        core_contract=CONTRACT_VERSION, builtins=builtin_plugins()
+    )
 
     if store in (None, BUILTIN_STORE):
         return Product(core=build_core(), registry=registry, store=BUILTIN_STORE)
