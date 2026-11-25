@@ -9,6 +9,27 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-11-25
+
+### Changed
+
+- **Бэкенды вынесены в отдельные пакеты-плагины:** `agoralar-store-json`,
+  `agoralar-store-sqlite` (в репозитории — `plugins/`). Продукт находит их
+  через entry points `agoralar.storage`, а не через встроенный список.
+- **Манифест плагина — обычные данные** (ADR-0013): точка входа возвращает
+  `{"requires_contract": ..., "factory": ...}`; плагин зависит только от
+  `axislar-core` и не импортирует DTO продукта. `PluginManifest` остаётся
+  внутренним DTO; продукт принимает и его (обратная совместимость).
+- Ошибки бэкендов больше не импортируются продуктом: CLI печатает
+  `RuntimeError` от плагинов как пользовательскую ошибку.
+- Продукт зависит от пакетов плагинов (до публикации в PyPI — path-зависимости
+  через `[tool.uv.sources]`).
+
+### Added
+
+- `plugins/store_json`, `plugins/store_sqlite`: собственные pyproject,
+  тесты, контрактный набор ядра; проверено установкой в чистый venv.
+
 ## [0.2.0] - 2025-11-25
 
 ### Added

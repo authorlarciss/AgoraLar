@@ -1,20 +1,22 @@
-"""SQLite-хранилище продукта: durable-бэкенд, а не SQL-движок.
+"""SQLite-хранилище для AxisLar: durable-бэкенд, а не SQL-движок.
 
 Таблица `entities` хранит объекты как JSON-документы, `meta` — версию
 формата и схему. Фильтрацию по-прежнему исполняет эталонный движок ядра:
 SQLite отвечает за долговечность, а не за пушдаун предикатов (ADR-0012).
 
-Это второй независимый слой хранения, и он проверяется контрактным
-набором ядра (`run_storage_contract`).
+Плагин продукта AgoraLar: зависит только от `axislar-core`, манифест —
+обычные данные (без DTO продукта). Проверяется контрактным набором ядра
+(`run_storage_contract`).
 """
 
 from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from contextlib import closing
 from pathlib import Path
+from typing import Any
 
 from axislar_core.contracts import (
     AxisDefinition,
@@ -30,10 +32,19 @@ from axislar_core.contracts import (
     build_core,
 )
 
-from nu.delta.public.errors import SqliteStoreError
-
 #: Версия формата БД.
 STORE_VERSION = 1
+
+#: Контракт ядра, с которым совместим плагин.
+REQUIRES_CONTRACT = ">=2,<3"
+
+#: Путь по умолчанию, если конфиг его не задал.
+DEFAULT_PATH = Path(".agoralar") / "vault.sqlite3"
+
+
+class SqliteStoreError(RuntimeError):
+    """База повреждена, недоступна или несовместима по версии."""
+
 
 _META_TABLE = "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
 _ENTITIES_TABLE = "CREATE TABLE IF NOT EXISTS entities (id TEXT PRIMARY KEY, doc TEXT NOT NULL)"
@@ -170,3 +181,25 @@ class SqliteStore(IStorageEngine):
 
 
 __all__ = ["STORE_VERSION", "SqliteStore", "SqliteStoreError"]
+
+
+def create(options: Mapping[str, Any]) -> IStorageEngine:
+    """Фабрика: путь из настроек плагина или значение по умолчанию."""
+    raw_path = options.get("path")
+    return SqliteStore(Path(str(raw_path)) if raw_path else DEFAULT_PATH)
+
+
+def plugin() -> dict[str, Any]:
+    """Манифест плагина обычными данными (без DTO продукта)."""
+    return {"requires_contract": REQUIRES_CONTRACT, "factory": create}
+
+
+__all__ = [
+    "DEFAULT_PATH",
+    "REQUIRES_CONTRACT",
+    "STORE_VERSION",
+    "SqliteStore",
+    "SqliteStoreError",
+    "create",
+    "plugin",
+]

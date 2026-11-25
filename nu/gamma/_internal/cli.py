@@ -34,7 +34,6 @@ from axislar_core.contracts import (
 
 from nu.psi.contracts.alpha import BUILTIN_STORE, Config
 from nu.psi.contracts.beta import PluginRegistry, UnknownPluginError
-from nu.psi.contracts.delta import JsonStoreError, builtin_plugins
 from nu.psi.contracts.iota import (
     DEFAULT_CONFIG_NAME,
     ConfigError,
@@ -241,7 +240,7 @@ def use_store(args: argparse.Namespace, config: Config) -> int:
     """Записать выбранное хранилище в конфиг, проверив его в реестре."""
     name: str = args.name
     if name != BUILTIN_STORE:
-        registry = PluginRegistry(core_contract=KERNEL_CONTRACT_VERSION, builtins=builtin_plugins())
+        registry = PluginRegistry(core_contract=KERNEL_CONTRACT_VERSION)
         registry.get(name)
 
     target = args.config or find_config() or Path.cwd() / DEFAULT_CONFIG_NAME
@@ -402,7 +401,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
         return asyncio.run(run(args))
-    except (CliError, ConfigError, JsonStoreError, UnknownPluginError) as error:
+    except (CliError, ConfigError, UnknownPluginError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    except RuntimeError as error:  # ошибки бэкендов-плагинов (JsonStoreError и др.)
         print(f"error: {error}", file=sys.stderr)
         return 2
     except ValueError as error:  # DTO-валидация ввода

@@ -1,16 +1,15 @@
-"""JSON-хранилище продукта: эталонная семантика ядра + файл.
+"""JSON-хранилище для AxisLar: файл + эталонная семантика ядра.
 
-Реализация не дублирует запросы: внутри — эталонный движок ядра
-(`build_core()`), сверху — персистентность (атомарная перезапись файла
-после каждой мутации). Семантика остаётся ровно той, что зафиксирована
-контрактом ядра.
+Плагин продукта AgoraLar. Зависит только от `axislar-core`: манифест —
+обычные данные (ADR-0013 продукта), DTO продукта не импортируются.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 from axislar_core.contracts import (
     AxisDefinition,
@@ -26,23 +25,26 @@ from axislar_core.contracts import (
     build_core,
 )
 
-from nu.delta.public.errors import JsonStoreError
-
 #: Версия формата файла. Меняется при несовместимом изменении.
 STORE_VERSION = 1
 
+#: Контракт ядра, с которым совместим плагин.
+REQUIRES_CONTRACT = ">=2,<3"
+
+#: Путь по умолчанию, если конфиг его не задал.
+DEFAULT_PATH = Path(".agoralar") / "vault.json"
+
+
+class JsonStoreError(RuntimeError):
+    """Файл хранилища повреждён или несовместим по версии."""
+
 
 class JsonStore(IStorageEngine):
-    """Хранилище в JSON-файле.
+    """Хранилище в JSON-файле (ленивое открытие, атомарная перезапись)."""
 
-    Ленивое открытие: файл читается при первой операции, чтобы конструктор
-    оставался синхронным (его вызывает фабрика плагина). Мутации
-    переписывают файл целиком — это бэкенд «для небольших наборов», а не
-    СУБД.
-    """
-
-    def __init__(self, path: Path | str) -> None:
+    def __init__(self, path: Path | str, schema: StorageSchema | None = None) -> None:
         self._path = Path(path)
+        self._schema = schema
         self._engine: IStorageEngine | None = None
 
     async def _store(self) -> IStorageEngine:
@@ -52,7 +54,12 @@ class JsonStore(IStorageEngine):
 
     async def _load(self) -> IStorageEngine:
         if not self._path.is_file():
-            return build_core().storage
+            engine = build_core().storage
+            for axis in self._schema.axes if self._schema else ():
+                await engine.add_axis(axis)
+            for scalar in self._schema.scalars if self._schema else ():
+                await engine.add_scalar(scalar)
+            return engine
 
         try:
             raw = json.loads(self._path.read_text(encoding="utf-8"))
@@ -96,8 +103,6 @@ class JsonStore(IStorageEngine):
         temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         temporary.replace(self._path)
 
-    # ---------------------------------------------------------------- схема
-
     async def get_schema(self) -> StorageSchema:
         return await (await self._store()).get_schema()
 
@@ -113,8 +118,6 @@ class JsonStore(IStorageEngine):
             await self._flush()
         return errors
 
-    # --------------------------------------------------------------- запись
-
     async def upsert(self, entity: Entity) -> list[DomainError]:
         errors = await (await self._store()).upsert(entity)
         if not errors:
@@ -126,8 +129,6 @@ class JsonStore(IStorageEngine):
         if len(errors) < len(entities):
             await self._flush()
         return errors
-
-    # --------------------------------------------------------------- чтение
 
     async def get(self, entity_id: EntityId) -> Entity | None:
         return await (await self._store()).get(entity_id)
@@ -145,4 +146,23 @@ class JsonStore(IStorageEngine):
         return build_core().storage.capabilities()
 
 
-__all__ = ["STORE_VERSION", "JsonStore", "JsonStoreError"]
+def create(options: Mapping[str, Any]) -> IStorageEngine:
+    """Фабрика: путь из настроек плагина или значение по умолчанию."""
+    raw_path = options.get("path")
+    return JsonStore(Path(str(raw_path)) if raw_path else DEFAULT_PATH)
+
+
+def plugin() -> dict[str, Any]:
+    """Манифест плагина обычными данными (без DTO продукта)."""
+    return {"requires_contract": REQUIRES_CONTRACT, "factory": create}
+
+
+__all__ = [
+    "DEFAULT_PATH",
+    "REQUIRES_CONTRACT",
+    "STORE_VERSION",
+    "JsonStore",
+    "JsonStoreError",
+    "create",
+    "plugin",
+]

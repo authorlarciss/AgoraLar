@@ -140,9 +140,28 @@ def _as_manifest(loaded: Any, point_name: str, kind: PluginKind) -> PluginManife
             return RejectedPlugin(point_name, kind.value, f"manifest factory failed: {error!r}")
         if isinstance(manifest, PluginManifest):
             return manifest
+        if isinstance(manifest, Mapping):
+            return _from_mapping(manifest, point_name, kind)
+    if isinstance(loaded, Mapping):
+        return _from_mapping(loaded, point_name, kind)
     return RejectedPlugin(
         point_name, kind.value, "entry point must return PluginManifest or a callable producing it"
     )
+
+
+def _from_mapping(
+    data: Mapping[str, Any], point_name: str, kind: PluginKind
+) -> PluginManifest | RejectedPlugin:
+    """Манифест обычными данными: `requires_contract` + фабрика."""
+    requires = data.get("requires_contract")
+    factory = data.get("factory")
+    if not isinstance(requires, str) or not requires:
+        return RejectedPlugin(
+            point_name, kind.value, "manifest requires 'requires_contract' string"
+        )
+    if not callable(factory):
+        return RejectedPlugin(point_name, kind.value, "manifest requires callable 'factory'")
+    return PluginManifest(name=point_name, kind=kind, requires_contract=requires, factory=factory)
 
 
 def _compatibility_error(

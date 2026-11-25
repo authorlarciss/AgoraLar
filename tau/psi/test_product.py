@@ -110,3 +110,21 @@ def test_explicit_store_overrides_config() -> None:
 
     config = Config(store="json")
     assert build_product("memory", config=config).store == "memory"
+
+
+def test_entry_points_discover_installed_plugins() -> None:
+    """Плагины находятся через importlib.metadata, без builtins-списка."""
+    product = build_product()
+    names = {manifest.name for manifest in product.registry.available}
+    assert {"json", "sqlite"} <= names
+
+
+def test_plugin_manifest_is_plain_data() -> None:
+    from importlib.metadata import entry_points
+
+    points = [ep for ep in entry_points(group="agoralar.storage") if ep.name == "json"]
+    assert points, "json plugin must be installed"
+    manifest = points[0].load()()
+    assert isinstance(manifest, dict)
+    assert manifest["requires_contract"] == ">=2,<3"
+    assert callable(manifest["factory"])

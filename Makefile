@@ -59,7 +59,7 @@ lock:
 	uv lock
 
 lint:
-	$(RUFF) check nu tau eta
+	$(RUFF) check nu tau eta plugins
 
 lint-imports:
 	$(LINT_IMPORTS)
@@ -71,14 +71,14 @@ contracts-check:
 	$(PY) -m eta.sync_contracts --check
 
 typecheck:
-	$(MYPY) nu tau eta
+	$(MYPY) nu tau eta plugins
 
 format:
-	$(RUFF) format nu tau eta
-	$(RUFF) check --fix nu tau eta
+	$(RUFF) format nu tau eta plugins
+	$(RUFF) check --fix nu tau eta plugins
 
 format-check:
-	$(RUFF) format --check nu tau eta
+	$(RUFF) format --check nu tau eta plugins
 
 check: format-check lint lint-imports contracts-check typecheck test
 

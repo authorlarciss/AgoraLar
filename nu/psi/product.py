@@ -14,7 +14,6 @@ from axislar_core.contracts import Core, IStorageEngine, build_core
 
 from nu.psi.contracts.alpha import BUILTIN_STORE, Config
 from nu.psi.contracts.beta import PluginRegistry
-from nu.psi.contracts.delta import builtin_plugins
 from nu.psi.contracts.mu import KERNEL_CONTRACT_VERSION
 from nu.psi.contracts.sigma import LoggingConfig, SigmaResolver
 
@@ -46,9 +45,7 @@ def build_product(
     отклонён, поднимается `UnknownPluginError` с причиной.
     """
     _setup_logging()
-    registry = registry or PluginRegistry(
-        core_contract=KERNEL_CONTRACT_VERSION, builtins=builtin_plugins()
-    )
+    registry = registry or PluginRegistry(core_contract=KERNEL_CONTRACT_VERSION)
     settings = config or Config()
     chosen = store or settings.store
     merged: dict[str, Any] = {**settings.options_for(chosen), **(options or {})}

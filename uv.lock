@@ -6,6 +6,8 @@ requires-python = ">=3.13, <3.15"
 name = "agoralar"
 source = { editable = "." }
 dependencies = [
+    { name = "agoralar-store-json" },
+    { name = "agoralar-store-sqlite" },
     { name = "packaging" },
 ]
 
@@ -22,6 +24,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "agoralar-store-json", editable = "plugins/store_json" },
+    { name = "agoralar-store-sqlite", editable = "plugins/store_sqlite" },
     { name = "import-linter", marker = "extra == 'dev'", specifier = ">=2.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "packaging", specifier = ">=24.0" },
@@ -29,6 +33,34 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
+]
+provides-extras = ["dev"]
+
+[[package]]
+name = "agoralar-store-json"
+version = "0.1.0"
+source = { editable = "plugins/store_json" }
+
+[package.metadata]
+requires-dist = [
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
+]
+provides-extras = ["dev"]
+
+[[package]]
+name = "agoralar-store-sqlite"
+version = "0.1.0"
+source = { editable = "plugins/store_sqlite" }
+
+[package.metadata]
+requires-dist = [
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
 ]
 provides-extras = ["dev"]

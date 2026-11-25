@@ -37,9 +37,13 @@
 | `alpha` | DTO продукта: конфиг, манифест плагина |
 | `beta` | Реестр плагинов: поиск, проверка контракта, включение |
 | `gamma` | Интерфейсы: CLI (позже HTTP) |
-| `delta` | Встроенные бэкенды: JSON, SQLite |
 | `iota` | Утилиты: пути, разбор настроек |
 | `psi` | Сборка продукта: `build_product(core, registry)` |
+
+Плагины — отдельные пакеты в `plugins/`: `agoralar-store-json` и
+`agoralar-store-sqlite`. Продукт находит их через entry points и проверяет
+совместимость с `CONTRACT_VERSION` ядра; сами плагины зависят только от
+`axislar-core`.
 | `mu` | Версия продукта и поддерживаемый диапазон контракта ядра |
 
 ## Быстрый старт
@@ -48,6 +52,7 @@
 make install            # venv + dev-зависимости
 
 make core               # ядро из локального wheel ../AxisLar/dist (репозиторий приватный)
+# плагины ставятся как path-зависимости при uv sync (plugins/*)
 # или из артефакта релиза:
 # gh release download v0.2.5 -R authorlarciss/AxisLar -p '*.whl' -D /tmp/core
 # uv pip install /tmp/core/axislar_core-0.2.5-py3-none-any.whl

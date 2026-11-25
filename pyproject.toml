@@ -13,7 +13,13 @@ authors = [
 ]
 dependencies = [
     "packaging>=24.0",
+    "agoralar-store-json",
+    "agoralar-store-sqlite",
 ]
+
+[tool.uv.sources]
+agoralar-store-json = { path = "plugins/store_json", editable = true }
+agoralar-store-sqlite = { path = "plugins/store_sqlite", editable = true }
 
 [project.optional-dependencies]
 dev = [
@@ -82,7 +88,7 @@ indent-style = "space"
 [tool.pytest.ini_options]
 minversion = "8.0"
 addopts = "-ra -q --strict-markers --cov=nu --cov=eta --cov-branch --cov-report=term-missing"
-testpaths = ["tau"]
+testpaths = ["tau", "plugins"]
 pythonpath = ["."]
 asyncio_mode = "auto"
 markers = [
@@ -111,7 +117,6 @@ source_modules = [
     "nu.alpha",
     "nu.beta",
     "nu.gamma",
-    "nu.delta",
     "nu.sigma",
     "nu.mu",
 ]
@@ -132,7 +137,6 @@ modules = [
     "nu.alpha",
     "nu.beta",
     "nu.gamma",
-    "nu.delta",
     "nu.sigma",
     "nu.mu",
 ]
@@ -143,7 +147,6 @@ ignore_imports = [
     "nu.psi.contracts.** -> nu.alpha.**",
     "nu.psi.contracts.** -> nu.beta.**",
     "nu.psi.contracts.** -> nu.gamma.**",
-    "nu.psi.contracts.** -> nu.delta.**",
     "nu.psi.contracts.** -> nu.iota.**",
     "nu.psi.contracts.** -> nu.sigma.**",
     "nu.psi.contracts.** -> nu.mu.**",
@@ -165,7 +168,6 @@ forbidden_modules = [
     "nu.alpha._internal",
     "nu.beta._internal",
     "nu.gamma._internal",
-    "nu.delta._internal",
     "nu.sigma._internal",
     "nu.mu._internal",
 ]
@@ -186,7 +188,6 @@ source_modules = [
     "nu.alpha",
     "nu.beta",
     "nu.gamma",
-    "nu.delta",
     "nu.sigma",
     "nu.mu",
     "nu.psi",
@@ -205,7 +206,6 @@ source_modules = [
     "nu.alpha.public",
     "nu.beta.public",
     "nu.gamma.public",
-    "nu.delta.public",
     "nu.sigma.public",
     "nu.mu.public",
 ]
@@ -213,7 +213,6 @@ forbidden_modules = [
     "nu.alpha._internal",
     "nu.beta._internal",
     "nu.gamma._internal",
-    "nu.delta._internal",
     "nu.sigma._internal",
     "nu.mu._internal",
 ]
@@ -221,8 +220,6 @@ forbidden_modules = [
 ignore_imports = [
     # >>> contracts:generated rule5
     "nu.gamma.public.resolver -> nu.gamma._internal.cli",
-    "nu.delta.public.resolver -> nu.delta._internal.json_store",
-    "nu.delta.public.resolver -> nu.delta._internal.sqlite_store",
     "nu.sigma.public.resolver -> nu.sigma._internal.setup",
     # <<< contracts:generated rule5
 ]
@@ -240,7 +237,6 @@ forbidden_modules = [
     "nu.alpha",
     "nu.beta",
     "nu.gamma",
-    "nu.delta",
     "nu.sigma",
     "nu.mu",
 ]

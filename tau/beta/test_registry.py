@@ -190,3 +190,22 @@ def test_contract_outside_product_range_is_rejected() -> None:
         [storage_point("json", manifest())], core_contract=CONTRACT, product_range=">=3"
     )
     assert "outside product range" in state.rejected[0].reason
+
+
+def test_mapping_manifest_is_accepted() -> None:
+    data = {"requires_contract": ">=2,<3", "factory": lambda _options: object()}
+    state = discover([storage_point("data-driven", data)], core_contract=CONTRACT)
+    assert [item.name for item in state.available] == ["data-driven"]
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ({"factory": lambda _options: object()}, "requires 'requires_contract'"),
+        ({"requires_contract": ">=2,<3"}, "requires callable 'factory'"),
+        ({"requires_contract": 2, "factory": lambda _o: object()}, "requires 'requires_contract'"),
+    ],
+)
+def test_bad_mapping_manifest_is_rejected(payload: dict[str, object], message: str) -> None:
+    state = discover([storage_point("bad", payload)], core_contract=CONTRACT)
+    assert message in state.rejected[0].reason
