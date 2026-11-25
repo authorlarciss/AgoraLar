@@ -10,14 +10,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
-from axislar_core.contracts import CONTRACT_VERSION, Core, IStorageEngine, build_core
+from axislar_core.contracts import Core, IStorageEngine, build_core
 
+from nu.psi.contracts.alpha import BUILTIN_STORE, Config
 from nu.psi.contracts.beta import PluginRegistry
 from nu.psi.contracts.delta import builtin_plugins
+from nu.psi.contracts.mu import KERNEL_CONTRACT_VERSION
 from nu.psi.contracts.sigma import LoggingConfig, SigmaResolver
-
-#: Имя встроенного бэкенда — его даёт само ядро, без плагинов.
-BUILTIN_STORE = "memory"
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,38 +29,43 @@ class Product:
 
     def describe(self) -> str:
         plugins = ", ".join(manifest.name for manifest in self.registry.available) or "<нет>"
-        return f"store={self.store}, kernel contract={CONTRACT_VERSION}, plugins: {plugins}"
+        return f"store={self.store}, kernel contract={KERNEL_CONTRACT_VERSION}, plugins: {plugins}"
 
 
 def build_product(
     store: str | None = None,
     options: Mapping[str, Any] | None = None,
     registry: PluginRegistry | None = None,
+    config: Config | None = None,
 ) -> Product:
     """Собрать продукт: логирование, реестр плагинов, ядро с хранилищем.
 
-    `store=None` — эталонное in-memory хранилище ядра (без плагинов).
-    Имя плагина берётся из реестра; если его нет или он отклонён,
-    поднимается `UnknownPluginError` с причиной.
+    Источники настроек: явные аргументы поверх `config`, `config` поверх
+    значений по умолчанию. Без конфига и аргументов — эталонное in-memory
+    хранилище ядра. Имя плагина берётся из реестра; если его нет или он
+    отклонён, поднимается `UnknownPluginError` с причиной.
     """
     _setup_logging()
     registry = registry or PluginRegistry(
-        core_contract=CONTRACT_VERSION, builtins=builtin_plugins()
+        core_contract=KERNEL_CONTRACT_VERSION, builtins=builtin_plugins()
     )
+    settings = config or Config()
+    chosen = store or settings.store
+    merged: dict[str, Any] = {**settings.options_for(chosen), **(options or {})}
 
-    if store in (None, BUILTIN_STORE):
+    if chosen == BUILTIN_STORE:
         return Product(core=build_core(), registry=registry, store=BUILTIN_STORE)
 
-    engine = cast(IStorageEngine, registry.create(store, options))
+    engine = cast(IStorageEngine, registry.create(chosen, merged))
     if not isinstance(engine, IStorageEngine):
         raise TypeError(
-            f"plugin {store!r} returned {type(engine).__name__}, expected IStorageEngine"
+            f"plugin {chosen!r} returned {type(engine).__name__}, expected IStorageEngine"
         )
-    return Product(core=build_core(storage=engine), registry=registry, store=store)
+    return Product(core=build_core(storage=engine), registry=registry, store=chosen)
 
 
 def _setup_logging() -> None:
     SigmaResolver().setup_logging(LoggingConfig(level="INFO", format="text"))
 
 
-__all__ = ["BUILTIN_STORE", "Product", "build_product"]
+__all__ = ["Product", "build_product"]

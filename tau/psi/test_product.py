@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -94,3 +95,18 @@ def test_bootstrap_exposes_build_product() -> None:
 
     product = bootstrap_build_product()
     assert product.store == "memory"
+
+
+def test_product_uses_config_store(tmp_path: Path) -> None:
+    from nu.psi.contracts.alpha import Config
+
+    config = Config(store="json", data=tmp_path / "vault.json")
+    product = build_product(config=config)
+    assert product.store == "json"
+
+
+def test_explicit_store_overrides_config() -> None:
+    from nu.psi.contracts.alpha import Config
+
+    config = Config(store="json")
+    assert build_product("memory", config=config).store == "memory"

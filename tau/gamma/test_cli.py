@@ -307,3 +307,73 @@ def test_put_domain_error_from_engine(tmp_path: Path, capsys: pytest.CaptureFixt
     data = ["--store", "json", "--data", str(tmp_path / "v.json")]
     assert run_cli(*data, "put", "--id", "x", "--kind", "edit", "--scalar", "nope=x") == 2
     assert "unknown_scalar" in capsys.readouterr().err
+
+
+def test_store_show_without_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    assert run_cli("store", "show") == 0
+    out = capsys.readouterr().out
+    assert "config: <нет файла" in out
+    assert "store: memory" in out
+
+
+def test_store_use_writes_config_and_show_reads_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    assert run_cli("store", "use", "json", "--data", "v.json") == 0
+    assert "->" in capsys.readouterr().out
+    assert (tmp_path / "agoralar.toml").is_file()
+
+    assert run_cli("store", "show") == 0
+    out = capsys.readouterr().out
+    assert "store: json" in out
+    assert "data: v.json" in out
+
+    # конфиг подхватывается командами без --store/--data
+    assert run_cli("schema", "add-axis", "--name", "theme", "--kind", "categorical") == 0
+    assert (tmp_path / "v.json").is_file()
+
+
+def test_store_use_rejects_unknown_plugin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    assert run_cli("store", "use", "nope") == 2
+    assert "not found" in capsys.readouterr().err
+    assert not (tmp_path / "agoralar.toml").exists()
+
+
+def test_store_use_builtin_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    assert run_cli("store", "use", "memory") == 0
+    capsys.readouterr()
+    assert run_cli("store", "show") == 0
+    assert "store: memory" in capsys.readouterr().out
+
+
+def test_broken_config_is_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "agoralar.toml").write_text("store = ", encoding="utf-8")
+    assert run_cli("schema", "show") == 2
+    assert "broken config" in capsys.readouterr().err
+
+
+def test_plugin_options_from_config_are_used(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "agoralar.toml").write_text(
+        'store = "json"\n\n[plugins.json]\npath = "custom.json"\n', encoding="utf-8"
+    )
+    assert run_cli("put", "--id", "x", "--kind", "edit") == 0
+    assert (tmp_path / "custom.json").is_file()
+    capsys.readouterr()
+    assert run_cli("show", "--id", "x") == 0
+    assert '"id":"x"' in capsys.readouterr().out

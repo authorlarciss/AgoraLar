@@ -11,6 +11,7 @@ import asyncio
 import json
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
 from axislar_core.contracts import (
@@ -31,8 +32,17 @@ from axislar_core.contracts import (
     StorageSchema,
 )
 
-from nu.psi.contracts.beta import UnknownPluginError
-from nu.psi.contracts.delta import JsonStoreError
+from nu.psi.contracts.alpha import BUILTIN_STORE, Config
+from nu.psi.contracts.beta import PluginRegistry, UnknownPluginError
+from nu.psi.contracts.delta import JsonStoreError, builtin_plugins
+from nu.psi.contracts.iota import (
+    DEFAULT_CONFIG_NAME,
+    ConfigError,
+    find_config,
+    load_config,
+    save_config,
+)
+from nu.psi.contracts.mu import KERNEL_CONTRACT_VERSION
 from nu.psi.product import Product, build_product
 
 #: Числовые операторы: значения разбираются как float.
@@ -210,9 +220,49 @@ def render_plugins(product: Product, as_json: bool) -> str:
 # ------------------------------------------------------------------ команды
 
 
+def resolve_config(args: argparse.Namespace) -> Config:
+    """Прочитать конфиг: явный `--config` или поиск вверх от cwd."""
+    return load_config(args.config)
+
+
+def render_config_state(config: Config, path: Path | None) -> str:
+    """Человекочитаемое состояние конфига."""
+    source = str(path or find_config() or "<нет файла: значения по умолчанию>")
+    lines = [f"config: {source}", f"store: {config.store}"]
+    if config.data is not None:
+        lines.append(f"data: {config.data}")
+    for name, section in sorted(config.plugins.items()):
+        pairs = ", ".join(f"{key}={value}" for key, value in sorted(section.items()))
+        lines.append(f"plugins.{name}: {pairs or '<пусто>'}")
+    return "\n".join(lines)
+
+
+def use_store(args: argparse.Namespace, config: Config) -> int:
+    """Записать выбранное хранилище в конфиг, проверив его в реестре."""
+    name: str = args.name
+    if name != BUILTIN_STORE:
+        registry = PluginRegistry(core_contract=KERNEL_CONTRACT_VERSION, builtins=builtin_plugins())
+        registry.get(name)
+
+    target = args.config or find_config() or Path.cwd() / DEFAULT_CONFIG_NAME
+    updated = replace(config, store=name, data=args.store_data or config.data)
+    save_config(updated, target)
+    print(f"store {name} -> {target}")
+    return 0
+
+
 async def run(args: argparse.Namespace) -> int:
+    config = resolve_config(args)
+    store = args.store or config.store
     options = {"path": str(args.data)} if args.data is not None else {}
-    product = build_product(args.store, options)
+    product = build_product(store, options, config=config)
+
+    if args.command == "config-show":
+        print(render_config_state(config, args.config))
+        return 0
+
+    if args.command == "store-use":
+        return use_store(args, config)
 
     if args.command == "schema-show":
         print(render_schema(await product.core.schema(), args.json))
@@ -264,6 +314,9 @@ async def run(args: argparse.Namespace) -> int:
         print(render_result(await product.core.query(build_query(args)), args.json))
         return 0
 
+    if args.command == "store-use":
+        return use_store(args, config)
+
     if args.command == "plugins-list":
         print(render_plugins(product, args.json))
         return 0
@@ -278,10 +331,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="agoralar", description="AgoraLar — оболочка AxisLar")
     parser.add_argument(
         "--store",
-        default="memory",
-        help="бэкенд хранилища: memory (ядро) или плагин из реестра (например json)",
+        default=None,
+        help="бэкенд хранилища: memory (ядро) или плагин из реестра (json); "
+        "по умолчанию — из конфига",
     )
     parser.add_argument("--data", type=Path, help="файл данных для файловых бэкендов")
+    parser.add_argument("--config", type=Path, help="путь к agoralar.toml")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     schema = subparsers.add_parser("schema", help="работа со схемой")
@@ -323,6 +378,15 @@ def build_parser() -> argparse.ArgumentParser:
     query.add_argument("--json", action="store_true")
     query.set_defaults(command="query")
 
+    store = subparsers.add_parser("store", help="активное хранилище")
+    store_sub = store.add_subparsers(dest="store_command", required=True)
+    store_show = store_sub.add_parser("show", help="показать конфиг")
+    store_show.set_defaults(command="config-show")
+    store_use = store_sub.add_parser("use", help="выбрать хранилище и записать конфиг")
+    store_use.add_argument("name")
+    store_use.add_argument("--data", type=Path, dest="store_data")
+    store_use.set_defaults(command="store-use")
+
     plugins = subparsers.add_parser("plugins", help="плагины")
     plugins_sub = plugins.add_subparsers(dest="plugins_command", required=True)
     plugins_list = plugins_sub.add_parser("list", help="список плагинов")
@@ -338,7 +402,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
         return asyncio.run(run(args))
-    except (CliError, JsonStoreError, UnknownPluginError) as error:
+    except (CliError, ConfigError, JsonStoreError, UnknownPluginError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     except ValueError as error:  # DTO-валидация ввода
