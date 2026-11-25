@@ -9,6 +9,21 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.5.0] - 2025-11-25
+
+### Added
+
+- **Источник `filesystem`** (`agoralar-source-filesystem` 0.1.0):
+  файловое дерево → оси по конфигу `levels`, `title` с выделением кода
+  (`VTA Cyberpunk` → `code=VTA`, `title=Cyberpunk`), автор и метка
+  времени из имени, `content_hash` (size + голова/хвост),
+  `id = UUIDv5(source_id, key)`. Рассогласования (код против каталога,
+  неожиданная глубина) — в `warnings`, объект всё равно импортируется.
+- **`agoralar sync`**: `--source`, `--root`, `--source-id`, `--levels`,
+  `--code CODE=section`, `--incomplete`, `--apply` (по умолчанию dry run).
+  Печатает счётчики плана, конфликты и предупреждения источника.
+- Продукт зависит от ядра 0.6.x (identity policy, source sync contract).
+
 ## [0.4.0] - 2025-11-25
 
 ### Changed

@@ -30,6 +30,9 @@ from axislar_core.contracts import (
     ReferenceValue,
     ScalarDefinition,
     StorageSchema,
+    SyncPolicy,
+    apply_plan,
+    plan_sync,
 )
 
 from nu.psi.contracts.alpha import BUILTIN_STORE, Config
@@ -152,6 +155,58 @@ def build_query(args: argparse.Namespace) -> Query:
         limit=args.limit,
         offset=args.offset,
     )
+
+
+async def run_sync(args: argparse.Namespace, product: Product) -> int:
+    """Собрать план синхронизации и (по флагу) применить его."""
+    registry = product.registry
+    manifest = registry.get(args.source)
+
+    options: dict[str, object] = {}
+    if args.root is not None:
+        options["root"] = str(args.root)
+    if args.source_id is not None:
+        options["source_id"] = args.source_id
+    if args.levels:
+        options["levels"] = [part.strip() for part in args.levels.split(",") if part.strip()]
+    if args.code:
+        codes: dict[str, str] = {}
+        for item in args.code:
+            code, separator, section = item.partition("=")
+            if not separator:
+                raise CliError(f"bad --code {item!r}, expected CODE=section")
+            codes[code] = section
+        options["codes"] = codes
+
+    source = manifest.factory(options)
+    from axislar_core.contracts import IEntitySource
+
+    if not isinstance(source, IEntitySource):
+        raise CliError(f"plugin {args.source!r} is not an entity source")
+
+    scanned = [entity async for entity in source.scan()]
+    storage = product.core.storage
+    existing = await storage.list_entities(include_deleted=True)
+    policy = SyncPolicy(source_id=str(options.get("source_id", "")), complete=not args.incomplete)
+    plan = plan_sync(scanned, existing, policy)
+
+    counts = plan.kinds()
+    summary = (
+        ", ".join(f"{kind}={count}" for kind, count in sorted(counts.items())) or "нет изменений"
+    )
+    print(f"scanned: {len(scanned)}; plan: {summary}")
+    for conflict in plan.conflicts:
+        print(f"conflict: {conflict.reason} ({conflict.key})", file=sys.stderr)
+    for warning in getattr(source, "warnings", ()):
+        print(f"warning: {warning}", file=sys.stderr)
+
+    if not args.apply:
+        print("dry run: use --apply to write changes")
+        return 0
+
+    applied = await apply_plan(storage, plan)
+    print(f"applied: {applied}")
+    return 0
 
 
 # ------------------------------------------------------------------- печать
@@ -316,11 +371,14 @@ async def run(args: argparse.Namespace) -> int:
     if args.command == "store-use":
         return use_store(args, config)
 
+    if args.command == "sync":
+        return await run_sync(args, product)
+
     if args.command == "plugins-list":
         print(render_plugins(product, args.json))
         return 0
 
-    raise CliError(f"unknown command {args.command!r}")  # pragma: no cover
+    raise CliError(f"unknown command {args.command!r}")  # pragma: no cover - защита
 
 
 # ------------------------------------------------------------------ парсер
@@ -385,6 +443,16 @@ def build_parser() -> argparse.ArgumentParser:
     store_use.add_argument("name")
     store_use.add_argument("--data", type=Path, dest="store_data")
     store_use.set_defaults(command="store-use")
+
+    sync = subparsers.add_parser("sync", help="синхронизировать хранилище с источником")
+    sync.add_argument("--source", default="filesystem", help="имя плагина-источника")
+    sync.add_argument("--root", type=Path, help="корень источника (для filesystem)")
+    sync.add_argument("--source-id", dest="source_id", help="стабильный id источника")
+    sync.add_argument("--levels", help="оси по уровням каталогов через запятую")
+    sync.add_argument("--code", action="append", default=[], help="CODE=section для сверки")
+    sync.add_argument("--incomplete", action="store_true", help="скан неполный: не удалять")
+    sync.add_argument("--apply", action="store_true", help="применить план (иначе dry run)")
+    sync.set_defaults(command="sync")
 
     plugins = subparsers.add_parser("plugins", help="плагины")
     plugins_sub = plugins.add_subparsers(dest="plugins_command", required=True)

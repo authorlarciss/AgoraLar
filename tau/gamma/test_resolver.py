@@ -16,7 +16,7 @@ def test_factory_returns_typed_callable() -> None:
 def test_cli_is_reachable_through_resolver(capsys: pytest.CaptureFixture[str]) -> None:
     entry = GammaResolver().make_cli()
     assert entry(["plugins", "list"]) == 0
-    assert "available: json" in capsys.readouterr().out
+    assert "available:" in capsys.readouterr().out
 
 
 def test_resolver_builds_fresh_callable_each_time() -> None:
