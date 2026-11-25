@@ -30,6 +30,7 @@ from axislar_core.contracts import (
     QueryResult,
     ReferenceValue,
     ScalarDefinition,
+    StorageQueryError,
     StorageSchema,
     SyncPolicy,
     apply_plan,
@@ -592,6 +593,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return asyncio.run(run(args))
     except (CliError, ConfigError, UnknownPluginError) as error:
         print(f"error: {error}", file=sys.stderr)
+        return 2
+    except StorageQueryError as error:  # движок отказал: запрос не прошёл валидацию
+        print_errors(error.errors)
         return 2
     except RuntimeError as error:  # ошибки бэкендов-плагинов (JsonStoreError и др.)
         print(f"error: {error}", file=sys.stderr)

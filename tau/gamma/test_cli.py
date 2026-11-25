@@ -383,3 +383,10 @@ def test_plugin_options_from_config_are_used(
     capsys.readouterr()
     assert run_cli("show", "--id", "x") == 0
     assert '"id":"x"' in capsys.readouterr().out
+
+
+def test_query_unknown_axis_is_reported(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Движок бросает StorageQueryError — CLI печатает ошибки, а не трейсбек."""
+    code = run_cli("query", "--filter", "nope:contains=x")
+    assert code == 2
+    assert "unknown_axis" in capsys.readouterr().err
