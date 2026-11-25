@@ -58,13 +58,14 @@ make install            # venv + dev-зависимости
 make core               # ядро из локального wheel ../AxisLar/dist (репозиторий приватный)
 # плагины ставятся как path-зависимости при uv sync (plugins/*)
 # или из артефакта релиза:
-# gh release download v0.2.5 -R authorlarciss/AxisLar -p '*.whl' -D /tmp/core
-# uv pip install /tmp/core/axislar_core-0.2.5-py3-none-any.whl
+# gh release download v0.8.0 -R authorlarciss/AxisLar -p '*.whl' -D /tmp/core
+# uv pip install /tmp/core/axislar_core-0.8.0-py3-none-any.whl
 
 make check              # линт, контракты, типы, тесты
 ```
 
 ## Статус
 
-`0.5.0`: реестр плагинов, бэкенды `json`/`sqlite`, источник `filesystem`,
-CLI (включая `sync`) и конфиг `agoralar.toml`. План — `lambda/PLAN.md`, решения — `lambda/adr/`.
+`0.9.0`: реестр плагинов, бэкенды `json`/`sqlite`, источник `filesystem`,
+CLI (`sync`, `watch`, `serve` — HTTP), конфиг `agoralar.toml`, история
+прогонов и работа на ядре 0.8.0 (провенанс, reuse по хэшу). План — `lambda/PLAN.md`, решения — `lambda/adr/`.
