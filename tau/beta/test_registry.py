@@ -10,7 +10,7 @@ import pytest
 from nu.psi.contracts.alpha import PluginKind, PluginManifest
 from nu.psi.contracts.beta import ENTRY_GROUPS, PluginRegistry, UnknownPluginError, discover
 
-CONTRACT = "3"
+CONTRACT = "4"
 
 
 class FakePoint:
@@ -38,7 +38,7 @@ class FakePoint:
 def manifest(
     name: str = "json",
     kind: PluginKind = PluginKind.STORAGE,
-    requires: str = ">=3,<4",
+    requires: str = ">=4,<5",
     factory: Callable[[Any], Any] | None = None,
 ) -> PluginManifest:
     return PluginManifest(
@@ -61,7 +61,7 @@ def test_compatible_plugin_is_available() -> None:
 
 def test_incompatible_contract_is_rejected_with_reason() -> None:
     state = discover(
-        [storage_point("future", manifest(name="future", requires=">=4"))],
+        [storage_point("future", manifest(name="future", requires=">=5"))],
         core_contract=CONTRACT,
     )
     assert state.available == ()
@@ -111,7 +111,7 @@ def test_foreign_groups_are_ignored() -> None:
 
 def test_registry_lists_and_reports_rejection_reason() -> None:
     registry = PluginRegistry(
-        [storage_point("future", manifest(name="future", requires=">=4"))],
+        [storage_point("future", manifest(name="future", requires=">=5"))],
         core_contract=CONTRACT,
     )
     assert registry.available == ()
@@ -140,7 +140,7 @@ def test_registry_create_calls_factory_with_options() -> None:
     assert seen == {"path": "vault.json"}
 
 
-def builtin(name: str = "json", requires: str = ">=3,<4") -> PluginManifest:
+def builtin(name: str = "json", requires: str = ">=4,<5") -> PluginManifest:
     return manifest(name=name, requires=requires)
 
 
@@ -151,7 +151,7 @@ def test_builtin_plugin_is_available() -> None:
 
 
 def test_incompatible_builtin_is_rejected() -> None:
-    state = discover([], core_contract=CONTRACT, builtins=[builtin(requires=">=4")])
+    state = discover([], core_contract=CONTRACT, builtins=[builtin(requires=">=5")])
     assert state.available == ()
     assert "requires contract" in state.rejected[0].reason
 
@@ -187,13 +187,13 @@ def test_callable_returning_garbage_is_rejected() -> None:
 
 def test_contract_outside_product_range_is_rejected() -> None:
     state = discover(
-        [storage_point("json", manifest())], core_contract=CONTRACT, product_range=">=4"
+        [storage_point("json", manifest())], core_contract=CONTRACT, product_range=">=5"
     )
     assert "outside product range" in state.rejected[0].reason
 
 
 def test_mapping_manifest_is_accepted() -> None:
-    data = {"requires_contract": ">=3,<4", "factory": lambda _options: object()}
+    data = {"requires_contract": ">=4,<5", "factory": lambda _options: object()}
     state = discover([storage_point("data-driven", data)], core_contract=CONTRACT)
     assert [item.name for item in state.available] == ["data-driven"]
 
@@ -202,7 +202,7 @@ def test_mapping_manifest_is_accepted() -> None:
     ("payload", "message"),
     [
         ({"factory": lambda _options: object()}, "requires 'requires_contract'"),
-        ({"requires_contract": ">=3,<4"}, "requires callable 'factory'"),
+        ({"requires_contract": ">=4,<5"}, "requires callable 'factory'"),
         ({"requires_contract": 2, "factory": lambda _o: object()}, "requires 'requires_contract'"),
     ],
 )

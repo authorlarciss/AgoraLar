@@ -36,7 +36,7 @@ from axislar_core.contracts import (
 STORE_VERSION = 1
 
 #: Контракт ядра, с которым совместим плагин.
-REQUIRES_CONTRACT = ">=3,<4"
+REQUIRES_CONTRACT = ">=4,<5"
 
 #: Путь по умолчанию, если конфиг его не задал.
 DEFAULT_PATH = Path(".agoralar") / "vault.sqlite3"

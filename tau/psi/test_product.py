@@ -12,7 +12,7 @@ from nu.psi import Product, build_product
 from nu.psi.contracts.alpha import PluginKind, PluginManifest
 from nu.psi.contracts.beta import ENTRY_GROUPS, PluginRegistry, UnknownPluginError
 
-CONTRACT = "3"
+CONTRACT = "4"
 
 
 class FakePoint:
@@ -48,7 +48,7 @@ def test_build_product_uses_plugin_engine() -> None:
         return build_core().storage
 
     manifest = PluginManifest(
-        name="custom", kind=PluginKind.STORAGE, requires_contract=">=3,<4", factory=factory
+        name="custom", kind=PluginKind.STORAGE, requires_contract=">=4,<5", factory=factory
     )
     point = FakePoint("custom", ENTRY_GROUPS[PluginKind.STORAGE], manifest)
     product = build_product("custom", registry=PluginRegistry([point], core_contract=CONTRACT))
@@ -59,7 +59,7 @@ def test_build_product_uses_plugin_engine() -> None:
 
 def test_build_product_rejects_bad_engine_type() -> None:
     manifest = PluginManifest(
-        name="broken", kind=PluginKind.STORAGE, requires_contract=">=3,<4", factory=lambda _o: 42
+        name="broken", kind=PluginKind.STORAGE, requires_contract=">=4,<5", factory=lambda _o: 42
     )
     point = FakePoint("broken", ENTRY_GROUPS[PluginKind.STORAGE], manifest)
     with pytest.raises(TypeError, match="expected IStorageEngine"):
@@ -126,5 +126,5 @@ def test_plugin_manifest_is_plain_data() -> None:
     assert points, "json plugin must be installed"
     manifest = points[0].load()()
     assert isinstance(manifest, dict)
-    assert manifest["requires_contract"] == ">=3,<4"
+    assert manifest["requires_contract"] == ">=4,<5"
     assert callable(manifest["factory"])

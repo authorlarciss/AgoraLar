@@ -26,6 +26,7 @@ from typing import Any
 from axislar_core.contracts import (
     CategoricalValue,
     Entity,
+    FacetOwner,
     FacetValue,
     IEntitySource,
     MeasurableValue,
@@ -34,7 +35,7 @@ from axislar_core.contracts import (
 )
 
 #: Контракт ядра, с которым совместим плагин.
-REQUIRES_CONTRACT = ">=3,<4"
+REQUIRES_CONTRACT = ">=4,<5"
 
 #: Оси по умолчанию: пять уровней каталогов.
 DEFAULT_LEVELS = ("owner", "media", "shelf", "section", "title")
@@ -129,6 +130,7 @@ class FilesystemSource(IEntitySource):
             kind="video" if path.suffix.lower() in {".mp4", ".webm", ".mov", ".mkv"} else "image",
             scalars={"path": key, "filename": path.name},
             facets=facets,
+            owners={axis: FacetOwner.SOURCE for axis in facets},
             origin=Origin(
                 source_id=self.source_id,
                 key=key,
