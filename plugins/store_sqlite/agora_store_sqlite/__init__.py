@@ -36,7 +36,7 @@ from axislar_core.contracts import (
 STORE_VERSION = 1
 
 #: Контракт ядра, с которым совместим плагин.
-REQUIRES_CONTRACT = ">=2,<3"
+REQUIRES_CONTRACT = ">=3,<4"
 
 #: Путь по умолчанию, если конфиг его не задал.
 DEFAULT_PATH = Path(".agoralar") / "vault.sqlite3"
@@ -172,6 +172,9 @@ class SqliteStore(IStorageEngine):
 
     async def count(self) -> int:
         return await (await self._store()).count()
+
+    async def list_entities(self, include_deleted: bool = False) -> tuple[Entity, ...]:
+        return await (await self._store()).list_entities(include_deleted=include_deleted)
 
     async def query(self, query: Query) -> QueryResult:
         return await (await self._store()).query(query)

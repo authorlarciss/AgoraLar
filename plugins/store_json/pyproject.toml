@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agoralar-store-json"
-version = "0.1.0"
+version = "0.2.0"
 description = "JSON-хранилище для AxisLar (плагин AgoraLar)"
 readme = "README.md"
 requires-python = ">=3.13,<3.15"

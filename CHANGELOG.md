@@ -9,6 +9,22 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.0] - 2025-11-25
+
+### Changed
+
+- Продукт работает с ядром **contract 3**: `CORE_CONTRACT_RANGE = ">=3,<4"`.
+- Плагины `agoralar-store-json` и `agoralar-store-sqlite` обновлены до
+  0.2.0: реализуют `list_entities(include_deleted)` и объявляют
+  `requires_contract >=3,<4`; проходят обновлённый контрактный набор ядра
+  (tombstone-семантика, resurrect).
+
+### Added
+
+- Сквозная поддержка soft-delete: объекты с `deleted_at` не попадают в
+  выдачи бэкендов, но доступны синхронизации через
+  `list_entities(include_deleted=True)`.
+
 ## [0.3.0] - 2025-11-25
 
 ### Changed
