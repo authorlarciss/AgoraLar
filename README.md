@@ -18,8 +18,8 @@
   даёт внятную ошибку вместо падения.
 - **Готовые хранилища.** В комплекте два бэкенда: `json` (файл) и
   `sqlite` (durable). Оба проходят контрактный набор ядра.
-- **Источники.** `filesystem` (дерево каталогов → оси, имя файла → фасеты) и
-  `sql` (таблица или `SELECT` в sqlite → оси и скаляры). `sync` приводит
+- **Источники.** `filesystem` (дерево каталогов → оси, имя файла → фасеты),
+  `sql` (таблица или `SELECT` в sqlite) и `http` (JSON-API). `sync` приводит
   хранилище в соответствие с источником (создание, переименование по хэшу,
   tombstone), `watch` делает это периодически и помнит историю прогонов.
   Параметры источника берутся из `[plugins.<имя>]` в `agoralar.toml` или из
@@ -49,7 +49,8 @@
 | `mu` | Версия продукта и поддерживаемый диапазон контракта ядра |
 
 Плагины — отдельные пакеты в `plugins/`: `agoralar-store-json`,
-`agoralar-store-sqlite`, `agoralar-source-filesystem`, `agoralar-source-sql`.
+`agoralar-store-sqlite`, `agoralar-source-filesystem`, `agoralar-source-sql`,
+`agoralar-source-http`.
 Продукт находит их через entry points (`agoralar.storage`, `agoralar.source`)
 и проверяет совместимость с `CONTRACT_VERSION` ядра; сами плагины зависят
 только от `axislar-core`.
@@ -70,7 +71,7 @@ make check              # линт, контракты, типы, тесты
 
 ## Статус
 
-`0.10.0`: реестр плагинов, бэкенды `json`/`sqlite`, источники `filesystem` и
-`sql`, CLI (`sync`, `watch`, `serve` — HTTP), конфиг `agoralar.toml`,
+`0.11.0`: реестр плагинов, бэкенды `json`/`sqlite`, источники `filesystem`,
+`sql` и `http`, CLI (`sync`, `watch`, `serve` — HTTP), конфиг `agoralar.toml`,
 история прогонов, работа на ядре 0.8.0 (провенанс, reuse по хэшу).
 План — `lambda/PLAN.md`, решения — `lambda/adr/`.

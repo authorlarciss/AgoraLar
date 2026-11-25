@@ -260,6 +260,7 @@ def test_plugins_list_json(capsys: pytest.CaptureFixture[str]) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert {item["name"] for item in payload["available"]} == {
         "filesystem",
+        "http",
         "json",
         "sql",
         "sqlite",

@@ -7,6 +7,7 @@ name = "agoralar"
 source = { editable = "." }
 dependencies = [
     { name = "agoralar-source-filesystem" },
+    { name = "agoralar-source-http" },
     { name = "agoralar-source-sql" },
     { name = "agoralar-store-json" },
     { name = "agoralar-store-sqlite" },
@@ -27,6 +28,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "agoralar-source-filesystem", editable = "plugins/source_filesystem" },
+    { name = "agoralar-source-http", editable = "plugins/source_http" },
     { name = "agoralar-source-sql", editable = "plugins/source_sql" },
     { name = "agoralar-store-json", editable = "plugins/store_json" },
     { name = "agoralar-store-sqlite", editable = "plugins/store_sqlite" },
@@ -45,6 +47,20 @@ provides-extras = ["dev"]
 name = "agoralar-source-filesystem"
 version = "0.2.0"
 source = { editable = "plugins/source_filesystem" }
+
+[package.metadata]
+requires-dist = [
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
+]
+provides-extras = ["dev"]
+
+[[package]]
+name = "agoralar-source-http"
+version = "0.1.0"
+source = { editable = "plugins/source_http" }
 
 [package.metadata]
 requires-dist = [

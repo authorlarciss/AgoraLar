@@ -9,6 +9,18 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.11.0] - 2025-11-25
+
+### Added
+
+- **Плагин-источник `http`** (`agoralar-source-http` 0.1.0): JSON-массив
+  записей по URL → объекты. Путь к массиву — `items` (`data.items`), поля
+  раскладываются теми же `key`/`axes`/`multi`/`measurable`/`reference`/
+  `scalars`/`hash`, что у `sql` (ADR-0016). `null` = отсутствие значения,
+  `content_hash` — по сопоставленным полям, транспорт только читает.
+  Ошибки транспорта — `HttpSourceError` (`RuntimeError`), прогон падает
+  целиком. Проходит `run_source_sync_contract`.
+
 ## [0.10.0] - 2025-11-25
 
 ### Added

@@ -17,6 +17,7 @@ dependencies = [
     "agoralar-store-sqlite",
     "agoralar-source-filesystem",
     "agoralar-source-sql",
+    "agoralar-source-http",
 ]
 
 [tool.uv.sources]
@@ -24,6 +25,7 @@ agoralar-store-json = { path = "plugins/store_json", editable = true }
 agoralar-store-sqlite = { path = "plugins/store_sqlite", editable = true }
 agoralar-source-filesystem = { path = "plugins/source_filesystem", editable = true }
 agoralar-source-sql = { path = "plugins/source_sql", editable = true }
+agoralar-source-http = { path = "plugins/source_http", editable = true }
 
 [project.optional-dependencies]
 dev = [
