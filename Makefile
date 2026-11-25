@@ -98,7 +98,7 @@ strip-template:
 
 # Пакет в разработке называется `nu`; на деплое он переименовывается
 # (nu -> DIST_PACKAGE) в копии дерева, чтобы артефакт был уникальным.
-DIST_PACKAGE ?= baselar_nu
+DIST_PACKAGE ?= agora_nu
 DIST_DIR ?= .deploy
 
 dist: contracts-check
