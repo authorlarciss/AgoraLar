@@ -176,10 +176,9 @@ def build_core_capabilities() -> frozenset[object]:
 
 
 def test_builtin_plugin_manifest_is_compatible() -> None:
-    manifests = builtin_plugins()
-    assert [manifest.name for manifest in manifests] == [JSON_STORE]
-    manifest = manifests[0]
-    assert manifest.requires_contract == ">=2,<3"
+    manifests = {manifest.name: manifest for manifest in builtin_plugins()}
+    assert JSON_STORE in manifests
+    assert all(manifest.requires_contract == ">=2,<3" for manifest in manifests.values())
 
 
 def test_builtin_factory_uses_default_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

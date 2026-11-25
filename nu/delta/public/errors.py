@@ -7,4 +7,8 @@ class JsonStoreError(RuntimeError):
     """Файл хранилища повреждён или несовместим по версии."""
 
 
-__all__ = ["JsonStoreError"]
+class SqliteStoreError(RuntimeError):
+    """База SQLite повреждена, недоступна или несовместима по версии."""
+
+
+__all__ = ["JsonStoreError", "SqliteStoreError"]

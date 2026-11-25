@@ -258,12 +258,13 @@ def test_broken_store_file_is_reported(tmp_path: Path, capsys: pytest.CaptureFix
 def test_plugins_list_json(capsys: pytest.CaptureFixture[str]) -> None:
     assert run_cli("plugins", "list", "--json") == 0
     payload = json.loads(capsys.readouterr().out)
-    assert [item["name"] for item in payload["available"]] == ["json"]
+    assert [item["name"] for item in payload["available"]] == ["json", "sqlite"]
 
 
 def test_memory_store_is_default(capsys: pytest.CaptureFixture[str]) -> None:
     assert run_cli("plugins", "list") == 0
-    assert "available: json" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "json (storage" in output and "sqlite (storage" in output
 
 
 def test_parser_requires_subcommand() -> None:

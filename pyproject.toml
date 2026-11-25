@@ -222,6 +222,7 @@ ignore_imports = [
     # >>> contracts:generated rule5
     "nu.gamma.public.resolver -> nu.gamma._internal.cli",
     "nu.delta.public.resolver -> nu.delta._internal.json_store",
+    "nu.delta.public.resolver -> nu.delta._internal.sqlite_store",
     "nu.sigma.public.resolver -> nu.sigma._internal.setup",
     # <<< contracts:generated rule5
 ]

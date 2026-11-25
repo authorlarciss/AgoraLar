@@ -9,6 +9,26 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-11-25
+
+### Added
+
+- **SQLite-бэкенд** (`sqlite`) как встроенный плагин: durable-хранилище
+  поверх эталонного движка ядра, `SqliteStoreError`, версия формата БД
+  (ADR-0012). Пушдауна предикатов нет — семантика не дублируется.
+- SQLite-бэкенд проходит контрактный набор ядра
+  (`run_storage_contract`) целиком — второй независимый слой хранения
+  проверен тем же набором, что и эталон.
+- `make core` ставит последний wheel ядра из `../AxisLar/dist`
+  (ядро 0.3.0 с контрактным набором).
+
+### Changed
+
+- `builtin_plugins()` теперь отдаёт два манифеста: `json` и `sqlite`;
+  `plugins list` и CLI видят оба.
+- SQLite-соединения закрываются явно (`closing`), тесты гоняются с
+  `-W error::ResourceWarning`.
+
 ## [0.1.0] - 2025-11-25
 
 Первый релиз продукта: оболочка над ядром `axislar-core` 0.2.x.
