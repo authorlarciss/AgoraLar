@@ -36,7 +36,16 @@ from axislar_core.contracts import (
 )
 
 from nu.psi.contracts.alpha import BUILTIN_STORE, Config
-from nu.psi.contracts.beta import PluginRegistry, UnknownPluginError
+from nu.psi.contracts.beta import (
+    PluginRegistry,
+    SyncState,
+    UnknownPluginError,
+    load_state,
+    record_sync,
+    save_state,
+    state_path_for,
+    sync_now,
+)
 from nu.psi.contracts.iota import (
     DEFAULT_CONFIG_NAME,
     ConfigError,
@@ -157,11 +166,8 @@ def build_query(args: argparse.Namespace) -> Query:
     )
 
 
-async def run_sync(args: argparse.Namespace, product: Product) -> int:
-    """Собрать план синхронизации и (по флагу) применить его."""
-    registry = product.registry
-    manifest = registry.get(args.source)
-
+def _sync_options(args: argparse.Namespace) -> dict[str, object]:
+    """Настройки источника из аргументов CLI."""
     options: dict[str, object] = {}
     if args.root is not None:
         options["root"] = str(args.root)
@@ -177,24 +183,42 @@ async def run_sync(args: argparse.Namespace, product: Product) -> int:
                 raise CliError(f"bad --code {item!r}, expected CODE=section")
             codes[code] = section
         options["codes"] = codes
+    return options
 
+
+def _state_file(args: argparse.Namespace) -> Path:
+    return args.state_file or state_path_for(Path.cwd())
+
+
+async def _sync_once(args: argparse.Namespace, product: Product) -> int:
+    """Один прогон: план, отчёт, применение и запись истории."""
+    manifest = product.registry.get(args.source)
+    options = _sync_options(args)
     source = manifest.factory(options)
+
     from axislar_core.contracts import IEntitySource
 
     if not isinstance(source, IEntitySource):
         raise CliError(f"plugin {args.source!r} is not an entity source")
 
+    source_id = str(options.get("source_id", ""))
     scanned = [entity async for entity in source.scan()]
     storage = product.core.storage
     existing = await storage.list_entities(include_deleted=True)
-    policy = SyncPolicy(source_id=str(options.get("source_id", "")), complete=not args.incomplete)
+    policy = SyncPolicy(source_id=source_id, complete=not args.incomplete)
     plan = plan_sync(scanned, existing, policy)
+
+    state_path = _state_file(args)
+    history = load_state(state_path)
+    previous = history.get(source_id)
 
     counts = plan.kinds()
     summary = (
         ", ".join(f"{kind}={count}" for kind, count in sorted(counts.items())) or "нет изменений"
     )
-    print(f"scanned: {len(scanned)}; plan: {summary}")
+    print(f"[{sync_now().isoformat(timespec='seconds')}] scanned: {len(scanned)}; plan: {summary}")
+    if previous is not None:
+        print(f"previous: {previous.describe()}")
     for conflict in plan.conflicts:
         print(f"conflict: {conflict.reason} ({conflict.key})", file=sys.stderr)
     for warning in getattr(source, "warnings", ()):
@@ -205,8 +229,34 @@ async def run_sync(args: argparse.Namespace, product: Product) -> int:
         return 0
 
     applied = await apply_plan(storage, plan)
-    print(f"applied: {applied}")
+    record = SyncState(
+        source_id=source_id,
+        last_run_at=sync_now(),
+        scanned=len(scanned),
+        counts=counts,
+        conflicts=len(plan.conflicts),
+    )
+    save_state(state_path, record_sync(history, record))
+    print(f"applied: {applied}; state: {state_path}")
     return 0
+
+
+async def run_sync(args: argparse.Namespace, product: Product) -> int:
+    """Один прогон синхронизации."""
+    return await _sync_once(args, product)
+
+
+async def run_watch(args: argparse.Namespace, product: Product) -> int:
+    """Периодическая синхронизация: N прогонов (0 — бесконечно)."""
+    iteration = 0
+    while True:
+        code = await _sync_once(args, product)
+        if code != 0:
+            return code
+        iteration += 1
+        if args.iterations and iteration >= args.iterations:
+            return 0
+        await asyncio.sleep(args.interval)
 
 
 # ------------------------------------------------------------------- печать
@@ -374,6 +424,9 @@ async def run(args: argparse.Namespace) -> int:
     if args.command == "sync":
         return await run_sync(args, product)
 
+    if args.command == "watch":
+        return await run_watch(args, product)
+
     if args.command == "plugins-list":
         print(render_plugins(product, args.json))
         return 0
@@ -452,7 +505,21 @@ def build_parser() -> argparse.ArgumentParser:
     sync.add_argument("--code", action="append", default=[], help="CODE=section для сверки")
     sync.add_argument("--incomplete", action="store_true", help="скан неполный: не удалять")
     sync.add_argument("--apply", action="store_true", help="применить план (иначе dry run)")
+    sync.add_argument("--state-file", type=Path, help="файл истории прогонов")
     sync.set_defaults(command="sync")
+
+    watch = subparsers.add_parser("watch", help="периодическая синхронизация")
+    watch.add_argument("--source", default="filesystem")
+    watch.add_argument("--root", type=Path)
+    watch.add_argument("--source-id", dest="source_id")
+    watch.add_argument("--levels")
+    watch.add_argument("--code", action="append", default=[])
+    watch.add_argument("--incomplete", action="store_true")
+    watch.add_argument("--apply", action="store_true")
+    watch.add_argument("--state-file", type=Path)
+    watch.add_argument("--interval", type=float, default=60.0, help="пауза между прогонами, с")
+    watch.add_argument("--iterations", type=int, default=0, help="0 — бесконечно")
+    watch.set_defaults(command="watch")
 
     plugins = subparsers.add_parser("plugins", help="плагины")
     plugins_sub = plugins.add_subparsers(dest="plugins_command", required=True)

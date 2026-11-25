@@ -43,6 +43,8 @@ def sync(tmp_path: Path, *extra: str) -> int:
         str(root),
         "--source-id",
         SOURCE_ID,
+        "--state-file",
+        str(tmp_path / "sync.json"),
         *extra,
     )
 
@@ -225,3 +227,88 @@ def test_store_show_renders_plugin_sections(
     out = capsys.readouterr().out
     assert "plugins.filesystem:" in out
     assert "root=/data" in out
+
+
+def test_sync_records_history_and_reports_previous(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    declare_schema(tmp_path)
+    make_tree(tmp_path / "data")
+
+    assert sync(tmp_path, "--apply") == 0
+    out = capsys.readouterr().out
+    assert "state:" in out
+
+    assert sync(tmp_path, "--apply") == 0
+    out = capsys.readouterr().out
+    assert "previous:" in out
+    assert "scanned=1" in out
+
+
+def test_watch_runs_iterations(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    declare_schema(tmp_path)
+    make_tree(tmp_path / "data")
+
+    code = run(
+        tmp_path,
+        "watch",
+        "--source",
+        "filesystem",
+        "--root",
+        str(tmp_path / "data"),
+        "--source-id",
+        SOURCE_ID,
+        "--apply",
+        "--iterations",
+        "2",
+        "--interval",
+        "0",
+    )
+    assert code == 0
+    out = capsys.readouterr().out
+    assert out.count("scanned:") == 2
+    assert "applied: 1" in out
+    assert "applied: 0" in out
+
+
+def test_watch_dry_run_does_not_write(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    declare_schema(tmp_path)
+    make_tree(tmp_path / "data")
+
+    code = run(
+        tmp_path,
+        "watch",
+        "--source",
+        "filesystem",
+        "--root",
+        str(tmp_path / "data"),
+        "--source-id",
+        SOURCE_ID,
+        "--iterations",
+        "1",
+        "--interval",
+        "0",
+    )
+    assert code == 0
+    assert "dry run" in capsys.readouterr().out
+    assert run(tmp_path, "query") == 0
+    assert "total=0" in capsys.readouterr().out
+
+
+def test_explicit_state_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    declare_schema(tmp_path)
+    make_tree(tmp_path / "data")
+    state = tmp_path / "history.json"
+    assert sync(tmp_path, "--apply", "--state-file", str(state)) == 0
+    assert state.is_file()
+    assert "history.json" in capsys.readouterr().out
+
+
+def test_broken_state_file_is_reported(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    declare_schema(tmp_path)
+    make_tree(tmp_path / "data")
+    state = tmp_path / "history.json"
+    state.write_text("{broken", encoding="utf-8")
+    assert sync(tmp_path, "--apply", "--state-file", str(state)) == 2
+    assert "broken sync state" in capsys.readouterr().err
