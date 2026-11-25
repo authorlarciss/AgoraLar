@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from nu.gamma._internal.cli import main
+from nu.gamma._internal.cli import main, parse_option_value
 
 STATE = "v.json"
 SOURCE_ID = "owner-media"
@@ -312,3 +312,122 @@ def test_broken_state_file_is_reported(tmp_path: Path, capsys: pytest.CaptureFix
     state.write_text("{broken", encoding="utf-8")
     assert sync(tmp_path, "--apply", "--state-file", str(state)) == 2
     assert "broken sync state" in capsys.readouterr().err
+
+
+# ------------------------------------------------- параметры источника (0.10.0)
+
+
+def test_source_line_is_printed(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    declare_schema(tmp_path)
+    make_tree(tmp_path / "data")
+    assert sync(tmp_path) == 0
+    assert "source: filesystem:" in capsys.readouterr().out
+
+
+def test_config_supplies_source_options(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    make_tree(tmp_path / "data")
+    (tmp_path / "agoralar.toml").write_text(
+        'store = "json"\n'
+        f'data = "{(tmp_path / STATE).as_posix()}"\n\n'
+        "[plugins.filesystem]\n"
+        f'root = "{(tmp_path / "data").as_posix()}"\n'
+        f'source_id = "{SOURCE_ID}"\n',
+        encoding="utf-8",
+    )
+    for axis in ("owner", "media", "shelf", "section", "title", "code", "author", "format"):
+        assert main(["schema", "add-axis", "--name", axis, "--kind", "categorical"]) == 0
+    assert main(["schema", "add-axis", "--name", "taken_at", "--kind", "measurable"]) == 0
+    assert main(["schema", "add-scalar", "--name", "path"]) == 0
+    assert main(["schema", "add-scalar", "--name", "filename"]) == 0
+    capsys.readouterr()
+
+    assert main(["sync", "--apply"]) == 0
+    out = capsys.readouterr().out
+    assert "scanned: 1" in out
+    assert "applied: 1" in out
+
+
+def test_option_overrides_config_value(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    declare_schema(tmp_path)
+    make_tree(tmp_path / "data")
+    (tmp_path / "agoralar.toml").write_text(
+        'store = "json"\n'
+        f'data = "{(tmp_path / STATE).as_posix()}"\n\n'
+        "[plugins.filesystem]\n"
+        'root = "/nope"\n'
+        f'source_id = "{SOURCE_ID}"\n',
+        encoding="utf-8",
+    )
+    capsys.readouterr()
+
+    assert main(["sync", "--option", f"root={(tmp_path / 'data').as_posix()}"]) == 0
+    assert "create=1" in capsys.readouterr().out
+
+
+def test_bad_option_syntax_is_reported(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    declare_schema(tmp_path)
+    assert sync(tmp_path, "--option", "root") == 2
+    assert "bad --option" in capsys.readouterr().err
+
+
+def test_option_values_are_toml_scalars() -> None:
+    assert parse_option_value("42") == 42
+    assert parse_option_value("3.5") == 3.5
+    assert parse_option_value("true") is True
+    assert parse_option_value('["a", "b"]') == ["a", "b"]
+    assert parse_option_value("SELECT * FROM t") == "SELECT * FROM t"
+
+
+def test_sql_source_end_to_end(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    import sqlite3
+
+    db = tmp_path / "export.db"
+    connection = sqlite3.connect(db)
+    connection.execute("CREATE TABLE edits (id TEXT, title TEXT, author TEXT, year INTEGER)")
+    connection.executemany(
+        "INSERT INTO edits VALUES (?, ?, ?, ?)",
+        [("e-1", "Alpha", "ann", 1999), ("e-2", "Beta", "bob", 2004)],
+    )
+    connection.commit()
+    connection.close()
+
+    assert run(tmp_path, "schema", "add-axis", "--name", "author", "--kind", "categorical") == 0
+    assert run(tmp_path, "schema", "add-axis", "--name", "year", "--kind", "measurable") == 0
+    assert run(tmp_path, "schema", "add-scalar", "--name", "title") == 0
+
+    assert (
+        run(
+            tmp_path,
+            "sync",
+            "--source",
+            "sql",
+            "--source-id",
+            "db-edits",
+            "--option",
+            f"path={db}",
+            "--option",
+            "table=edits",
+            "--option",
+            'axes=["author"]',
+            "--option",
+            'measurable=["year"]',
+            "--option",
+            'scalars=["title"]',
+            "--apply",
+            "--state-file",
+            str(tmp_path / "sync.json"),
+        )
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert "source: sql:" in out
+    assert "applied: 2" in out
+
+    assert run(tmp_path, "query", "--filter", "author:contains=ann", "--json") == 0
+    assert json.loads(capsys.readouterr().out)["total"] == 1

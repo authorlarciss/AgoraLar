@@ -5,10 +5,14 @@
 
 ## 0. Статус (2025-11-25)
 
-**Текущая версия — 0.9.0** на ядре `axislar-core` 0.8.0 (contract 4).
+**Текущая версия — 0.10.0** на ядре `axislar-core` 0.8.0 (contract 4).
 Выполнено: P0–P5 и сверх плана — HTTP, история прогонов, периодический
 `watch`, провенанс и reuse производных фактов. Плагины: `json`, `sqlite`
-(0.3.0), `filesystem` (0.2.0) — все `requires_contract >=4,<5`.
+(0.3.0), `filesystem` (0.2.0), `sql` (0.1.0) — все `requires_contract >=4,<5`.
+
+В 0.10.0 добавлено: параметры источника из `[plugins.<имя>]` и `--option`
+(ADR-0015) и плагин-источник `sql` (sqlite, только чтение; `NULL` = отсутствие
+значения, `content_hash` по сопоставленным колонкам).
 
 ## 1. Что уже есть
 
@@ -17,6 +21,7 @@
 | Реестр плагинов (entry points, проверка контракта, отклонённые с причиной) | `nu/beta/public/registry.py` (ADR-0011) |
 | JSON- и SQLite-бэкенды | `plugins/store_json`, `plugins/store_sqlite` (ADR-0012) |
 | Источник `filesystem` (оси по `levels`, код из имени, хэш, id по политике ядра) | `plugins/source_filesystem` |
+| Источник `sql` (таблица/`SELECT` в sqlite, раскладка колонок по осям, `NULL` = разреженность) | `plugins/source_sql` (ADR-0015) |
 | CLI: `schema`, `put`, `show`, `query`, `plugins list`, `store show/use`, `sync`, `watch`, `serve` | `nu/gamma/_internal/cli.py` |
 | HTTP JSON API (`/health`, `/schema`, `/axes`, `/scalars`, `/objects/{id}`, `/query`, `/plugins`) | `nu/gamma/public/http_api.py` (ADR-0014) |
 | Конфиг `agoralar.toml` + история прогонов `.agoralar/sync.json` | `nu/iota`, `nu/beta/public/sync_state.py` |
@@ -31,8 +36,9 @@
 
 ## 3. Что дальше (по приоритету)
 
-1. **`source`-плагины помимо filesystem**: SQL-адаптер, внешний HTTP-источник
-   (по образцу `agora_source_filesystem`, с `run_source_sync_contract`).
+1. **HTTP-источник** (`agoralar-source-http`): внешний API как источник
+   объектов, по тем же правилам, что `filesystem`/`sql` —
+   `run_source_sync_contract` обязателен. SQL-источник сделан в 0.10.0.
 2. **`Artifact`** (в ядре): тяжёлые производные данные (превью, эмбеддинги)
    с дедупликацией по `content_hash`; сейчас reuse переносит только фасеты.
 3. **HTTP: аутентификация и запуск в контейнере** (сейчас `127.0.0.1` без

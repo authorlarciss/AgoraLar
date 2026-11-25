@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import json
 import sys
+import tomllib
 from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
@@ -166,9 +167,14 @@ def build_query(args: argparse.Namespace) -> Query:
     )
 
 
-def _sync_options(args: argparse.Namespace) -> dict[str, object]:
-    """Настройки источника из аргументов CLI."""
-    options: dict[str, object] = {}
+def _sync_options(args: argparse.Namespace, config: Config) -> dict[str, object]:
+    """Настройки источника: секция конфига, аргументы CLI, затем `--option`.
+
+    Плагин-источник сам знает свои параметры (файловое дерево, DSN, URL),
+    поэтому продукт не перечисляет их: конфиг даёт базу, явные флаги её
+    уточняют, `--option` перекрывает всё.
+    """
+    options: dict[str, object] = config.source_options_for(args.source)
     if args.root is not None:
         options["root"] = str(args.root)
     if args.source_id is not None:
@@ -183,17 +189,43 @@ def _sync_options(args: argparse.Namespace) -> dict[str, object]:
                 raise CliError(f"bad --code {item!r}, expected CODE=section")
             codes[code] = section
         options["codes"] = codes
+    options.update(parse_options(args.option))
     return options
+
+
+def parse_options(tokens: Sequence[str]) -> dict[str, object]:
+    """`--option key=value` → словарь параметров плагина.
+
+    Значение разбирается как TOML-скаляр: `true`, `42`, `3.5`, `["a","b"]`
+    и `"строка"` работают как в конфиге. Что не является TOML — остаётся
+    строкой (`query=SELECT * FROM t` не требует кавычек).
+    """
+    options: dict[str, object] = {}
+    for token in tokens:
+        key, separator, raw = token.partition("=")
+        if not separator or not key:
+            raise CliError(f"bad --option {token!r}, expected key=value")
+        options[key] = parse_option_value(raw)
+    return options
+
+
+def parse_option_value(raw: str) -> object:
+    """Разобрать значение `--option` как TOML-скаляр, иначе — строка."""
+    try:
+        parsed = tomllib.loads(f"value = {raw}")
+    except tomllib.TOMLDecodeError:
+        return raw
+    return parsed.get("value", raw)
 
 
 def _state_file(args: argparse.Namespace) -> Path:
     return args.state_file or state_path_for(Path.cwd())
 
 
-async def _sync_once(args: argparse.Namespace, product: Product) -> int:
+async def _sync_once(args: argparse.Namespace, product: Product, config: Config) -> int:
     """Один прогон: план, отчёт, применение и запись истории."""
     manifest = product.registry.get(args.source)
-    options = _sync_options(args)
+    options = _sync_options(args, config)
     source = manifest.factory(options)
 
     from axislar_core.contracts import IEntitySource
@@ -216,6 +248,7 @@ async def _sync_once(args: argparse.Namespace, product: Product) -> int:
     summary = (
         ", ".join(f"{kind}={count}" for kind, count in sorted(counts.items())) or "нет изменений"
     )
+    print(f"source: {source.describe()}")
     print(f"[{sync_now().isoformat(timespec='seconds')}] scanned: {len(scanned)}; plan: {summary}")
     if previous is not None:
         print(f"previous: {previous.describe()}")
@@ -241,16 +274,16 @@ async def _sync_once(args: argparse.Namespace, product: Product) -> int:
     return 0
 
 
-async def run_sync(args: argparse.Namespace, product: Product) -> int:
+async def run_sync(args: argparse.Namespace, product: Product, config: Config) -> int:
     """Один прогон синхронизации."""
-    return await _sync_once(args, product)
+    return await _sync_once(args, product, config)
 
 
-async def run_watch(args: argparse.Namespace, product: Product) -> int:
+async def run_watch(args: argparse.Namespace, product: Product, config: Config) -> int:
     """Периодическая синхронизация: N прогонов (0 — бесконечно)."""
     iteration = 0
     while True:
-        code = await _sync_once(args, product)
+        code = await _sync_once(args, product, config)
         if code != 0:
             return code
         iteration += 1
@@ -430,10 +463,10 @@ async def run(args: argparse.Namespace) -> int:
         return 0
 
     if args.command == "sync":
-        return await run_sync(args, product)
+        return await run_sync(args, product, config)
 
     if args.command == "watch":
-        return await run_watch(args, product)
+        return await run_watch(args, product, config)
 
     if args.command == "plugins-list":
         print(render_plugins(product, args.json))
@@ -516,6 +549,13 @@ def build_parser() -> argparse.ArgumentParser:
     sync.add_argument("--source-id", dest="source_id", help="стабильный id источника")
     sync.add_argument("--levels", help="оси по уровням каталогов через запятую")
     sync.add_argument("--code", action="append", default=[], help="CODE=section для сверки")
+    sync.add_argument(
+        "--option",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="параметр плагина-источника (перекрывает конфиг)",
+    )
     sync.add_argument("--incomplete", action="store_true", help="скан неполный: не удалять")
     sync.add_argument("--apply", action="store_true", help="применить план (иначе dry run)")
     sync.add_argument("--state-file", type=Path, help="файл истории прогонов")
@@ -527,6 +567,7 @@ def build_parser() -> argparse.ArgumentParser:
     watch.add_argument("--source-id", dest="source_id")
     watch.add_argument("--levels")
     watch.add_argument("--code", action="append", default=[])
+    watch.add_argument("--option", action="append", default=[], metavar="KEY=VALUE")
     watch.add_argument("--incomplete", action="store_true")
     watch.add_argument("--apply", action="store_true")
     watch.add_argument("--state-file", type=Path)
