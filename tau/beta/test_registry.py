@@ -164,3 +164,29 @@ def test_builtin_colliding_with_entry_point_is_rejected() -> None:
     )
     assert len(state.available) == 1
     assert state.rejected[0].reason == "duplicate plugin name"
+
+
+def test_duplicate_builtins_are_rejected() -> None:
+    state = discover([], core_contract=CONTRACT, builtins=[builtin(), builtin()])
+    assert len(state.available) == 1
+    assert state.rejected[0].reason == "duplicate plugin name"
+
+
+def test_manifest_factory_failure_is_rejected() -> None:
+    def broken() -> PluginManifest:
+        raise RuntimeError("boom")
+
+    state = discover([storage_point("broken", broken)], core_contract=CONTRACT)
+    assert "manifest factory failed" in state.rejected[0].reason
+
+
+def test_callable_returning_garbage_is_rejected() -> None:
+    state = discover([storage_point("junk", lambda: 42)], core_contract=CONTRACT)
+    assert "must return PluginManifest" in state.rejected[0].reason
+
+
+def test_contract_outside_product_range_is_rejected() -> None:
+    state = discover(
+        [storage_point("json", manifest())], core_contract=CONTRACT, product_range=">=3"
+    )
+    assert "outside product range" in state.rejected[0].reason

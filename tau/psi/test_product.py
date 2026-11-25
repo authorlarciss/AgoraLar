@@ -80,3 +80,17 @@ def test_default_product_exposes_builtin_json_store() -> None:
     product = build_product()
     names = [manifest.name for manifest in product.registry.available]
     assert "json" in names
+
+
+def test_product_describe_lists_store_and_plugins() -> None:
+    product = build_product()
+    text = product.describe()
+    assert "store=memory" in text
+    assert "json" in text
+
+
+def test_bootstrap_exposes_build_product() -> None:
+    from nu.psi.bootstrap import build_product as bootstrap_build_product
+
+    product = bootstrap_build_product()
+    assert product.store == "memory"

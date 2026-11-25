@@ -1,6 +1,6 @@
-"""Контракт gamma для внешнего использования.
+"""Контракт gamma продукта: CLI."""
 
-Публичный API пока пуст. Наполняется в конкретном проекте.
-"""
+from nu.gamma.public import CliMain as CliMain
+from nu.gamma.public import GammaResolver as GammaResolver
 
-__all__ = []
+__all__ = ["CliMain", "GammaResolver"]

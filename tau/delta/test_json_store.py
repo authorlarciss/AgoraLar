@@ -188,3 +188,64 @@ def test_builtin_factory_uses_default_path(monkeypatch: pytest.MonkeyPatch, tmp_
     monkeypatch.chdir(tmp_path)
     engine = make_json_store({})
     assert isinstance(engine, JsonStore)
+
+
+async def test_corrupted_entity_is_reported(tmp_path: Path) -> None:
+    path = tmp_path / "vault.json"
+    path.write_text(
+        json.dumps({"version": 1, "schema": {}, "entities": [{"id": "x"}]}), encoding="utf-8"
+    )
+    with pytest.raises(JsonStoreError, match="broken store"):
+        await JsonStore(path).count()
+
+
+async def test_entities_violating_schema_are_reported(tmp_path: Path) -> None:
+    path = tmp_path / "vault.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "schema": {
+                    "axes": [{"name": "theme", "kind": "categorical"}],
+                    "scalars": [],
+                },
+                "entities": [
+                    {
+                        "id": "x",
+                        "kind": "edit",
+                        "facets": {"colour": [{"kind": "categorical", "value": "red"}]},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(JsonStoreError, match="unknown_axis"):
+        await JsonStore(path).count()
+
+
+async def test_failed_mutations_do_not_touch_file(tmp_path: Path) -> None:
+    engine = store(tmp_path)
+    await engine.add_axis(AxisDefinition(name="theme", kind=AxisKind.CATEGORICAL))
+    before = (tmp_path / "vault.json").read_bytes()
+
+    assert await engine.add_axis(AxisDefinition(name="theme", kind=AxisKind.CATEGORICAL))
+    assert await engine.add_scalar(ScalarDefinition(name="title")) == []
+    duplicated = await engine.add_scalar(ScalarDefinition(name="title"))
+    assert duplicated
+    assert await engine.upsert(Entity(id=EntityId("bad"), kind="edit", scalars={"nope": "x"}))
+    assert (tmp_path / "vault.json").read_bytes() != before  # add_scalar успел записать
+
+
+async def test_bulk_upsert_all_invalid_does_not_create_file(tmp_path: Path) -> None:
+    path = tmp_path / "vault.json"
+    engine = JsonStore(path)
+    await engine.add_axis(AxisDefinition(name="theme", kind=AxisKind.CATEGORICAL))
+    before = path.read_bytes()
+
+    errors = await engine.bulk_upsert(
+        (Entity(id=EntityId("bad"), kind="edit", scalars={"nope": "x"}),)
+    )
+    assert errors
+    assert path.read_bytes() == before
+    assert await engine.count() == 0
