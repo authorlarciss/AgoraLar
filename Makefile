@@ -1,4 +1,4 @@
-.PHONY: help install core install-pip lock lint lint-imports contracts contracts-check strip-template dist dist-all typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean docker-context docker-build verify verify-docker
+.PHONY: help install core install-pip lock lint lint-imports contracts contracts-check strip-template dist dist-all typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean docker-context docker-build verify verify-docker publish-check publish-test publish
 
 PYTHON := python3
 VENV := .venv
@@ -37,6 +37,9 @@ help:
 	@echo "  make docker-build  — собрать образ продукта (docker)"
 	@echo "  make verify        — сквозная проверка из wheel: CLI + HTTP"
 	@echo "  make verify-docker — то же плюс сборка и запуск образа"
+	@echo "  make publish-check — собрать и проверить артефакты (twine), без загрузки"
+	@echo "  make publish-test  — публикация в TestPyPI (нужен UV_PUBLISH_TOKEN)"
+	@echo "  make publish       — публикация в PyPI (нужен UV_PUBLISH_TOKEN)"
 	@echo "  make run           — запуск nu.main"
 	@echo "  make clean         — удалить кэши и venv"
 
@@ -164,3 +167,14 @@ dist-all: dist
 	@for plugin in plugins/*/; do (cd "$$plugin" && uv build --out-dir dist >/dev/null); done
 	@for wheel in plugins/*/dist/*.whl; do cp "$$wheel" dist/; done
 	@ls -1 dist
+
+# Публикация: ядро -> плагины -> продукт, с проверкой метаданных и
+# пропуском уже загруженных файлов. Токен берётся из UV_PUBLISH_TOKEN.
+publish-check:
+	bash scripts/publish.sh --dry-run
+
+publish-test:
+	bash scripts/publish.sh --index testpypi
+
+publish:
+	bash scripts/publish.sh --index pypi

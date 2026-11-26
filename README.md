@@ -155,6 +155,10 @@ uv pip install --python .venv/bin/python \
 .venv/bin/agoralar --help
 ```
 
+Публикация в индексы — отдельный шаг с твоими токенами, см.
+[lambda/PUBLISHING.md](lambda/PUBLISHING.md) и `make publish-check` /
+`make publish-test` / `make publish`.
+
 Проверить, что всё на месте:
 
 ```bash
