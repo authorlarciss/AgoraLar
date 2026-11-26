@@ -41,7 +41,7 @@ from axislar_core.contracts import (
 )
 
 #: Контракт ядра, с которым совместим плагин.
-REQUIRES_CONTRACT = ">=4,<5"
+REQUIRES_CONTRACT = ">=5,<6"
 
 #: Вид объекта, если он не задан в настройках.
 DEFAULT_KIND = "record"

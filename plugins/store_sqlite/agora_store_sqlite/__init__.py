@@ -19,6 +19,8 @@ from pathlib import Path
 from typing import Any
 
 from axislar_core.contracts import (
+    Artifact,
+    ArtifactRef,
     AxisDefinition,
     Capability,
     DomainError,
@@ -36,7 +38,7 @@ from axislar_core.contracts import (
 STORE_VERSION = 1
 
 #: Контракт ядра, с которым совместим плагин.
-REQUIRES_CONTRACT = ">=4,<5"
+REQUIRES_CONTRACT = ">=5,<6"
 
 #: Путь по умолчанию, если конфиг его не задал.
 DEFAULT_PATH = Path(".agoralar") / "vault.sqlite3"
@@ -48,6 +50,10 @@ class SqliteStoreError(RuntimeError):
 
 _META_TABLE = "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
 _ENTITIES_TABLE = "CREATE TABLE IF NOT EXISTS entities (id TEXT PRIMARY KEY, doc TEXT NOT NULL)"
+_ARTIFACTS_TABLE = (
+    "CREATE TABLE IF NOT EXISTS artifacts ("
+    "content_hash TEXT PRIMARY KEY, media_type TEXT NOT NULL, data BLOB NOT NULL)"
+)
 
 
 class SqliteStore(IStorageEngine):
@@ -82,8 +88,12 @@ class SqliteStore(IStorageEngine):
             with closing(self._connect()) as connection, connection:
                 connection.execute(_META_TABLE)
                 connection.execute(_ENTITIES_TABLE)
+                connection.execute(_ARTIFACTS_TABLE)
                 meta = dict(connection.execute("SELECT key, value FROM meta").fetchall())
                 rows = connection.execute("SELECT doc FROM entities").fetchall()
+                artifact_rows = connection.execute(
+                    "SELECT content_hash, media_type, data FROM artifacts"
+                ).fetchall()
         except sqlite3.DatabaseError as error:
             raise SqliteStoreError(f"broken database {self._path}: {error}") from error
 
@@ -104,6 +114,15 @@ class SqliteStore(IStorageEngine):
         for scalar in schema.scalars:
             await engine.add_scalar(scalar)
 
+        for content_hash, media_type, data in artifact_rows:
+            artifact_errors = await engine.put_artifact(
+                Artifact(
+                    content_hash=str(content_hash), media_type=str(media_type), data=bytes(data)
+                )
+            )
+            if artifact_errors:
+                raise SqliteStoreError(f"broken store {self._path}: {artifact_errors[0]}")
+
         errors = await engine.bulk_upsert(entities)
         if errors:
             raise SqliteStoreError(f"broken store {self._path}: {errors[0]}")
@@ -115,13 +134,26 @@ class SqliteStore(IStorageEngine):
         entities = await engine.fetch_many(result.ids)
         schema_json = (await engine.get_schema()).model_dump_json()
         payload = [(str(entity.id), entity.model_dump_json()) for entity in entities]
+        artifacts = []
+        for reference in await engine.list_artifacts():
+            artifact = await engine.get_artifact(reference.content_hash)
+            if artifact is not None:
+                artifacts.append(
+                    (artifact.content_hash, artifact.media_type, sqlite3.Binary(artifact.data))
+                )
 
         try:
             with closing(self._connect()) as connection, connection:
                 connection.execute(_META_TABLE)
                 connection.execute(_ENTITIES_TABLE)
+                connection.execute(_ARTIFACTS_TABLE)
                 connection.execute("DELETE FROM entities")
+                connection.execute("DELETE FROM artifacts")
                 connection.executemany("INSERT INTO entities (id, doc) VALUES (?, ?)", payload)
+                connection.executemany(
+                    "INSERT INTO artifacts (content_hash, media_type, data) VALUES (?, ?, ?)",
+                    artifacts,
+                )
                 connection.executemany(
                     "INSERT INTO meta (key, value) VALUES (?, ?) "
                     "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -178,6 +210,26 @@ class SqliteStore(IStorageEngine):
 
     async def query(self, query: Query) -> QueryResult:
         return await (await self._store()).query(query)
+
+    # ------------------------------------------------------------ артефакты
+
+    async def put_artifact(self, artifact: Artifact) -> list[DomainError]:
+        errors = await (await self._store()).put_artifact(artifact)
+        if not errors:
+            await self._flush()
+        return errors
+
+    async def get_artifact(self, content_hash: str) -> Artifact | None:
+        return await (await self._store()).get_artifact(content_hash)
+
+    async def list_artifacts(self) -> tuple[ArtifactRef, ...]:
+        return await (await self._store()).list_artifacts()
+
+    async def delete_artifact(self, content_hash: str) -> list[DomainError]:
+        errors = await (await self._store()).delete_artifact(content_hash)
+        if not errors:
+            await self._flush()
+        return errors
 
     def capabilities(self) -> frozenset[Capability]:
         return build_core().storage.capabilities()

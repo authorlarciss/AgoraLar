@@ -59,10 +59,49 @@ async def test_unsupported_version_is_reported(tmp_path: Path) -> None:
 
 def test_manifest_is_plain_data() -> None:
     manifest = plugin()
-    assert manifest["requires_contract"] == ">=4,<5"
+    assert manifest["requires_contract"] == ">=5,<6"
     assert callable(manifest["factory"])
 
 
 def test_create_uses_options_path(tmp_path: Path) -> None:
     engine = create({"path": str(tmp_path / "custom.json")})
     assert isinstance(engine, JsonStore)
+
+
+async def test_artifacts_survive_reopen(tmp_path: Path) -> None:
+    from axislar_core.contracts import ArtifactRef, make_artifact
+
+    path = tmp_path / "vault.json"
+    artifact = make_artifact(b"preview-bytes", "image/png")
+    engine = JsonStore(path)
+    assert await engine.put_artifact(artifact) == []
+
+    entity = Entity(
+        id=EntityId("e-1"),
+        kind="edit",
+        artifacts={
+            "preview": ArtifactRef(
+                content_hash=artifact.content_hash,
+                media_type=artifact.media_type,
+                size=artifact.size,
+            )
+        },
+    )
+    assert await engine.upsert(entity) == []
+
+    reopened = JsonStore(path)
+    assert await reopened.get_artifact(artifact.content_hash) == artifact
+    fetched = await reopened.get(EntityId("e-1"))
+    assert fetched is not None and fetched.artifacts == entity.artifacts
+
+
+async def test_artifact_deletion_is_persisted(tmp_path: Path) -> None:
+    from axislar_core.contracts import make_artifact
+
+    path = tmp_path / "vault.json"
+    artifact = make_artifact(b"temp", "text/plain")
+    engine = JsonStore(path)
+    await engine.put_artifact(artifact)
+    assert await engine.delete_artifact(artifact.content_hash) == []
+
+    assert await JsonStore(path).get_artifact(artifact.content_hash) is None

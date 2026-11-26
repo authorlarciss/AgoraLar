@@ -148,7 +148,7 @@ def test_partial_hash_detects_content_change(tmp_path: Path) -> None:
 
 def test_plugin_manifest() -> None:
     manifest = plugin()
-    assert manifest["requires_contract"] == ">=4,<5"
+    assert manifest["requires_contract"] == ">=5,<6"
     assert callable(manifest["factory"])
 
 

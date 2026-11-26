@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from axislar_core.contracts import (
+    Artifact,
+    ArtifactRef,
     AxisDefinition,
     Capability,
     DomainError,
@@ -29,7 +31,7 @@ from axislar_core.contracts import (
 STORE_VERSION = 1
 
 #: Контракт ядра, с которым совместим плагин.
-REQUIRES_CONTRACT = ">=4,<5"
+REQUIRES_CONTRACT = ">=5,<6"
 
 #: Путь по умолчанию, если конфиг его не задал.
 DEFAULT_PATH = Path(".agoralar") / "vault.json"
@@ -74,6 +76,7 @@ class JsonStore(IStorageEngine):
 
         try:
             schema = StorageSchema.model_validate(raw["schema"])
+            artifacts = [Artifact.model_validate(item) for item in raw.get("artifacts", [])]
             entities = [Entity.model_validate(item) for item in raw["entities"]]
         except (KeyError, TypeError, ValueError) as error:
             raise JsonStoreError(f"broken store {self._path}: {error}") from error
@@ -84,6 +87,11 @@ class JsonStore(IStorageEngine):
         for scalar in schema.scalars:
             await engine.add_scalar(scalar)
 
+        for artifact in artifacts:
+            artifact_errors = await engine.put_artifact(artifact)
+            if artifact_errors:
+                raise JsonStoreError(f"broken store {self._path}: {artifact_errors[0]}")
+
         errors = await engine.bulk_upsert(entities)
         if errors:
             raise JsonStoreError(f"broken store {self._path}: {errors[0]}")
@@ -93,9 +101,15 @@ class JsonStore(IStorageEngine):
         engine = await self._store()
         result = await engine.query(Query())
         entities = await engine.fetch_many(result.ids)
+        artifacts = []
+        for reference in await engine.list_artifacts():
+            artifact = await engine.get_artifact(reference.content_hash)
+            if artifact is not None:
+                artifacts.append(json.loads(artifact.model_dump_json()))
         payload = {
             "version": STORE_VERSION,
             "schema": json.loads((await engine.get_schema()).model_dump_json()),
+            "artifacts": artifacts,
             "entities": [json.loads(entity.model_dump_json()) for entity in entities],
         }
         self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -144,6 +158,24 @@ class JsonStore(IStorageEngine):
 
     async def query(self, query: Query) -> QueryResult:
         return await (await self._store()).query(query)
+
+    async def put_artifact(self, artifact: Artifact) -> list[DomainError]:
+        errors = await (await self._store()).put_artifact(artifact)
+        if not errors:
+            await self._flush()
+        return errors
+
+    async def get_artifact(self, content_hash: str) -> Artifact | None:
+        return await (await self._store()).get_artifact(content_hash)
+
+    async def list_artifacts(self) -> tuple[ArtifactRef, ...]:
+        return await (await self._store()).list_artifacts()
+
+    async def delete_artifact(self, content_hash: str) -> list[DomainError]:
+        errors = await (await self._store()).delete_artifact(content_hash)
+        if not errors:
+            await self._flush()
+        return errors
 
     def capabilities(self) -> frozenset[Capability]:
         return build_core().storage.capabilities()

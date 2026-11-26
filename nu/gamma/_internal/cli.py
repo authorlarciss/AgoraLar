@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import json
 import sys
 import tomllib
@@ -16,6 +17,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from axislar_core.contracts import (
+    ArtifactRef,
     AxisDefinition,
     AxisKind,
     CategoricalValue,
@@ -34,6 +36,7 @@ from axislar_core.contracts import (
     StorageSchema,
     SyncPolicy,
     apply_plan,
+    make_artifact,
     plan_sync,
 )
 
@@ -149,7 +152,7 @@ def parse_facet(schema: StorageSchema, token: str) -> tuple[str, tuple[FacetValu
     return name, tuple(values)
 
 
-def build_entity(schema: StorageSchema, args: argparse.Namespace) -> Entity:
+async def build_entity(schema: StorageSchema, args: argparse.Namespace, product: Product) -> Entity:
     facets: dict[str, tuple[FacetValue, ...]] = {}
     for token in args.facet:
         name, values = parse_facet(schema, token)
@@ -157,7 +160,36 @@ def build_entity(schema: StorageSchema, args: argparse.Namespace) -> Entity:
             raise CliError(f"facet {name!r} is given twice")
         facets[name] = values
     scalars = dict(parse_scalar(token) for token in args.scalar)
-    return Entity(id=EntityId(args.id), kind=args.kind, scalars=scalars, facets=facets)
+    artifacts = await build_artifact_refs(product, args.artifact)
+    return Entity(
+        id=EntityId(args.id),
+        kind=args.kind,
+        scalars=scalars,
+        facets=facets,
+        artifacts=artifacts,
+    )
+
+
+async def build_artifact_refs(product: Product, tokens: Sequence[str]) -> dict[str, ArtifactRef]:
+    """`--artifact role=hash` → ссылки; метаданные берутся из хранилища.
+
+    Продукт не выдумывает `media_type` и `size`: он спрашивает хранилище,
+    поэтому ссылка всегда согласована с байтами.
+    """
+    references: dict[str, ArtifactRef] = {}
+    for token in tokens:
+        role, separator, content_hash = token.partition("=")
+        if not separator or not role or not content_hash:
+            raise CliError(f"bad --artifact {token!r}, expected role=hash")
+        if role in references:
+            raise CliError(f"artifact role {role!r} is given twice")
+        stored = await product.core.get_artifact(content_hash)
+        if stored is None:
+            raise CliError(f"unknown artifact {content_hash!r}")
+        references[role] = ArtifactRef(
+            content_hash=stored.content_hash, media_type=stored.media_type, size=stored.size
+        )
+    return references
 
 
 def build_query(args: argparse.Namespace) -> Query:
@@ -293,6 +325,50 @@ async def run_watch(args: argparse.Namespace, product: Product, config: Config) 
         await asyncio.sleep(args.interval)
 
 
+async def put_artifact(args: argparse.Namespace, product: Product) -> int:
+    """Положить файл в хранилище артефактов; печатает адрес (хэш)."""
+    try:
+        data = args.file.read_bytes()
+    except OSError as error:
+        raise CliError(f"cannot read {args.file}: {error}") from error
+    try:
+        artifact = make_artifact(data, args.media_type)
+    except ValueError as error:  # pydantic ValidationError тоже ValueError
+        raise CliError(f"invalid artifact: {error}") from error
+
+    errors = await product.core.put_artifact(artifact)
+    if errors:
+        print_errors(errors)
+        return 2
+    print(f"{artifact.content_hash} {artifact.size}B (deduplicated by content)")
+    return 0
+
+
+async def get_artifact(args: argparse.Namespace, product: Product) -> int:
+    """Отдать байты артефакта: в файл или base64 в stdout."""
+    artifact = await product.core.get_artifact(args.hash)
+    if artifact is None:
+        print(f"not found: {args.hash}", file=sys.stderr)
+        return 1
+    if args.out is None:
+        print(base64.b64encode(artifact.data).decode("ascii"))
+        return 0
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_bytes(artifact.data)
+    print(f"{args.out} ({artifact.size}B, {artifact.media_type})")
+    return 0
+
+
+async def remove_artifact(args: argparse.Namespace, product: Product) -> int:
+    """Удалить артефакт, на который никто не ссылается."""
+    errors = await product.core.delete_artifact(args.hash)
+    if errors:
+        print_errors(errors)
+        return 2
+    print(f"deleted {args.hash}")
+    return 0
+
+
 # ------------------------------------------------------------------- печать
 
 
@@ -326,6 +402,29 @@ def render_result(result: QueryResult, as_json: bool) -> str:
     ids = "\n".join(str(entity_id) for entity_id in result.ids)
     header = f"# total={result.total} limit={result.limit} offset={result.offset}"
     return f"{header}\n{ids}".rstrip()
+
+
+def render_artifacts(references: Sequence[ArtifactRef], as_json: bool) -> str:
+    if as_json:
+        return json.dumps(
+            [
+                {
+                    "content_hash": reference.content_hash,
+                    "media_type": reference.media_type,
+                    "size": reference.size,
+                }
+                for reference in references
+            ],
+            ensure_ascii=False,
+            indent=2,
+        )
+    if not references:
+        return "<артефактов нет>"
+    lines = [
+        f"{reference.content_hash} {reference.media_type} {reference.size}B"
+        for reference in references
+    ]
+    return "\n".join(lines)
 
 
 def render_plugins(product: Product, as_json: bool) -> str:
@@ -432,7 +531,7 @@ async def run(args: argparse.Namespace) -> int:
         return 0
 
     if args.command == "put":
-        entity = build_entity(await product.core.schema(), args)
+        entity = await build_entity(await product.core.schema(), args, product)
         errors = await product.core.upsert(entity)
         if errors:
             print_errors(errors)
@@ -473,6 +572,19 @@ async def run(args: argparse.Namespace) -> int:
         print(render_plugins(product, args.json))
         return 0
 
+    if args.command == "artifact-put":
+        return await put_artifact(args, product)
+
+    if args.command == "artifact-get":
+        return await get_artifact(args, product)
+
+    if args.command == "artifact-list":
+        print(render_artifacts(await product.core.list_artifacts(), args.json))
+        return 0
+
+    if args.command == "artifact-remove":
+        return await remove_artifact(args, product)
+
     raise CliError(f"unknown command {args.command!r}")  # pragma: no cover - защита
 
 
@@ -511,11 +623,29 @@ def build_parser() -> argparse.ArgumentParser:
     add_scalar.add_argument("--searchable", action="store_true")
     add_scalar.set_defaults(command="schema-add-scalar")
 
+    artifact = subparsers.add_parser("artifact", help="артефакты: байты по хэшу")
+    artifact_sub = artifact.add_subparsers(dest="artifact_command", required=True)
+    artifact_put = artifact_sub.add_parser("put", help="положить файл")
+    artifact_put.add_argument("file", type=Path)
+    artifact_put.add_argument("--media-type", dest="media_type", required=True)
+    artifact_put.set_defaults(command="artifact-put")
+    artifact_get = artifact_sub.add_parser("get", help="получить байты")
+    artifact_get.add_argument("hash")
+    artifact_get.add_argument("--out", type=Path, help="файл для байтов (иначе base64)")
+    artifact_get.set_defaults(command="artifact-get")
+    artifact_ls = artifact_sub.add_parser("ls", help="список артефактов")
+    artifact_ls.add_argument("--json", action="store_true")
+    artifact_ls.set_defaults(command="artifact-list")
+    artifact_rm = artifact_sub.add_parser("rm", help="удалить неиспользуемый артефакт")
+    artifact_rm.add_argument("hash")
+    artifact_rm.set_defaults(command="artifact-remove")
+
     put = subparsers.add_parser("put", help="записать объект")
     put.add_argument("--id", required=True)
     put.add_argument("--kind", required=True, help="вид объекта: edit, note, ...")
     put.add_argument("--scalar", action="append", default=[], help="name=value")
     put.add_argument("--facet", action="append", default=[], help="axis=v1,v2")
+    put.add_argument("--artifact", action="append", default=[], help="role=hash")
     put.set_defaults(command="put")
 
     show_entity = subparsers.add_parser("show", help="показать объект")

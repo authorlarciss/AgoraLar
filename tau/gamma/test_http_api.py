@@ -31,7 +31,7 @@ async def test_health(tmp_path: Path) -> None:
     status, payload = await call(target, "GET", "/health")
     assert status == 200
     assert payload["store"] == "json"
-    assert payload["kernel_contract"] == "4"
+    assert payload["kernel_contract"] == "5"
 
 
 async def test_schema_is_empty_initially(tmp_path: Path) -> None:
@@ -170,3 +170,84 @@ def test_resolvers_are_wired() -> None:
 async def test_every_method_has_a_route_or_405(tmp_path: Path, method: str) -> None:
     status, _ = await call(api(tmp_path), method, "/unknown")
     assert status in {404, 405}
+
+
+# ------------------------------------------------------- артефакты (contract 5)
+
+
+async def test_artifact_roundtrip(tmp_path: Path) -> None:
+    import base64
+
+    target = api(tmp_path)
+    encoded = base64.b64encode(b"preview-bytes").decode("ascii")
+
+    status, payload = await call(
+        target, "POST", "/artifacts", {"media_type": "image/png", "data": encoded}
+    )
+    assert status == 201, payload
+    content_hash = payload["content_hash"]
+    assert payload["size"] == len(b"preview-bytes")
+
+    status, payload = await call(target, "GET", "/artifacts")
+    assert status == 200
+    assert [item["content_hash"] for item in payload["artifacts"]] == [content_hash]
+
+    status, payload = await call(target, "GET", f"/artifacts/{content_hash}")
+    assert status == 200
+    assert payload["artifact"]["media_type"] == "image/png"
+    assert payload["artifact"]["data"] == encoded
+
+    status, payload = await call(target, "DELETE", f"/artifacts/{content_hash}")
+    assert status == 200 and payload["deleted"] == content_hash
+
+    status, _ = await call(target, "GET", f"/artifacts/{content_hash}")
+    assert status == 404
+
+
+async def test_artifact_put_is_idempotent(tmp_path: Path) -> None:
+    import base64
+
+    target = api(tmp_path)
+    body = {"media_type": "image/png", "data": base64.b64encode(b"same").decode("ascii")}
+    first = await call(target, "POST", "/artifacts", body)
+    second = await call(target, "POST", "/artifacts", body)
+    assert first[0] == second[0] == 201
+    assert first[1]["content_hash"] == second[1]["content_hash"]
+
+    status, payload = await call(target, "GET", "/artifacts")
+    assert status == 200 and len(payload["artifacts"]) == 1
+
+
+async def test_artifact_rejects_bad_body(tmp_path: Path) -> None:
+    target = api(tmp_path)
+    assert (await call(target, "POST", "/artifacts", {"data": "AAAA"}))[0] == 400
+    assert (await call(target, "POST", "/artifacts", {"media_type": "image/png"}))[0] == 400
+
+    status, _ = await call(
+        target, "POST", "/artifacts", {"media_type": "image/png", "data": "not-base64!"}
+    )
+    assert status == 400
+
+
+async def test_artifact_in_use_is_conflict(tmp_path: Path) -> None:
+    import base64
+
+    target = api(tmp_path)
+    encoded = base64.b64encode(b"held").decode("ascii")
+    _, payload = await call(
+        target, "POST", "/artifacts", {"media_type": "image/png", "data": encoded}
+    )
+    content_hash = payload["content_hash"]
+
+    entity = {
+        "kind": "edit",
+        "artifacts": {
+            "preview": {"content_hash": content_hash, "media_type": "image/png", "size": 4}
+        },
+    }
+    status, _ = await call(target, "PUT", "/objects/e-1", entity)
+    assert status == 201
+
+    status, payload = await call(target, "DELETE", f"/artifacts/{content_hash}")
+    assert status == 409
+    assert payload["errors"][0]["code"] == "artifact_in_use"

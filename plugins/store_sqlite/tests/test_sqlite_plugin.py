@@ -62,9 +62,48 @@ async def test_unsupported_version_is_reported(tmp_path: Path) -> None:
 
 def test_manifest_is_plain_data() -> None:
     manifest = plugin()
-    assert manifest["requires_contract"] == ">=4,<5"
+    assert manifest["requires_contract"] == ">=5,<6"
     assert callable(manifest["factory"])
 
 
 def test_create_uses_options_path(tmp_path: Path) -> None:
     assert isinstance(create({"path": str(tmp_path / "x.sqlite3")}), SqliteStore)
+
+
+async def test_artifacts_survive_reopen(tmp_path: Path) -> None:
+    from axislar_core.contracts import ArtifactRef, EntityId, make_artifact
+
+    path = tmp_path / "vault.sqlite3"
+    artifact = make_artifact(b"preview-bytes", "image/png")
+    engine = SqliteStore(path)
+    assert await engine.put_artifact(artifact) == []
+
+    entity = Entity(
+        id=EntityId("e-1"),
+        kind="edit",
+        artifacts={
+            "preview": ArtifactRef(
+                content_hash=artifact.content_hash,
+                media_type=artifact.media_type,
+                size=artifact.size,
+            )
+        },
+    )
+    assert await engine.upsert(entity) == []
+
+    reopened = SqliteStore(path)
+    assert await reopened.get_artifact(artifact.content_hash) == artifact
+    fetched = await reopened.get(EntityId("e-1"))
+    assert fetched is not None and fetched.artifacts == entity.artifacts
+
+
+async def test_artifact_bytes_are_binary_in_sqlite(tmp_path: Path) -> None:
+    from axislar_core.contracts import make_artifact
+
+    path = tmp_path / "vault.sqlite3"
+    artifact = make_artifact(bytes(range(256)), "application/octet-stream")
+    await SqliteStore(path).put_artifact(artifact)
+
+    with closing(sqlite3.connect(path)) as connection, connection:
+        row = connection.execute("SELECT data FROM artifacts").fetchone()
+    assert row is not None and bytes(row[0]) == artifact.data

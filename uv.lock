@@ -45,7 +45,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-source-filesystem"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "plugins/source_filesystem" }
 
 [package.metadata]
@@ -59,7 +59,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-source-http"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "plugins/source_http" }
 
 [package.metadata]
@@ -73,7 +73,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-source-sql"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "plugins/source_sql" }
 
 [package.metadata]
@@ -87,7 +87,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-store-json"
-version = "0.3.0"
+version = "0.4.0"
 source = { editable = "plugins/store_json" }
 
 [package.metadata]
@@ -101,7 +101,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-store-sqlite"
-version = "0.3.0"
+version = "0.4.0"
 source = { editable = "plugins/store_sqlite" }
 
 [package.metadata]

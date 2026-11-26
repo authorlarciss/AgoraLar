@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 from typing import Any
 
@@ -17,6 +19,7 @@ from axislar_core.contracts import (
     EntityId,
     Query,
     ScalarDefinition,
+    make_artifact,
 )
 
 from nu.psi.contracts.mu import CONTRACT_VERSION, KERNEL_CONTRACT_VERSION, __version__
@@ -74,6 +77,19 @@ class HttpApi:
                 ],
             }
 
+        if route == "/artifacts":
+            if method == "GET":
+                return await self._list_artifacts()
+            if method == "POST":
+                return await self._put_artifact(body)
+
+        if len(parts) == 2 and parts[0] == "artifacts":
+            content_hash = parts[1]
+            if method == "GET":
+                return await self._get_artifact(content_hash)
+            if method == "DELETE":
+                return await self._delete_artifact(content_hash)
+
         if len(parts) == 2 and parts[0] == "objects":
             entity_id = parts[1]
             if method == "GET":
@@ -128,6 +144,63 @@ class HttpApi:
             return 422, {"errors": [_dump(error) for error in errors]}
         return 201, {"id": str(entity.id)}
 
+    # ----------------------------------------------------------- артефакты
+
+    async def _list_artifacts(self) -> Response:
+        references = await self.product.core.list_artifacts()
+        return 200, {
+            "artifacts": [
+                {
+                    "content_hash": reference.content_hash,
+                    "media_type": reference.media_type,
+                    "size": reference.size,
+                }
+                for reference in references
+            ]
+        }
+
+    async def _put_artifact(self, body: bytes | None) -> Response:
+        payload = _json(body)
+        media_type = payload.get("media_type")
+        encoded = payload.get("data")
+        if not isinstance(media_type, str) or not media_type:
+            return 400, {"error": "media_type is required"}
+        if not isinstance(encoded, str):
+            return 400, {"error": "data must be a base64 string"}
+        try:
+            data = base64.b64decode(encoded, validate=True)
+            artifact = make_artifact(data, media_type)
+        except (binascii.Error, ValueError) as error:
+            return 400, {"error": f"invalid artifact: {error}"}
+
+        errors = await self.product.core.put_artifact(artifact)
+        if errors:
+            return 422, {"errors": [_dump(error) for error in errors]}
+        return 201, {
+            "content_hash": artifact.content_hash,
+            "media_type": artifact.media_type,
+            "size": artifact.size,
+        }
+
+    async def _get_artifact(self, content_hash: str) -> Response:
+        artifact = await self.product.core.get_artifact(content_hash)
+        if artifact is None:
+            return 404, {"error": f"artifact {content_hash!r} not found"}
+        return 200, {
+            "artifact": {
+                "content_hash": artifact.content_hash,
+                "media_type": artifact.media_type,
+                "size": artifact.size,
+                "data": base64.b64encode(artifact.data).decode("ascii"),
+            }
+        }
+
+    async def _delete_artifact(self, content_hash: str) -> Response:
+        errors = await self.product.core.delete_artifact(content_hash)
+        if errors:
+            return 409, {"errors": [_dump(error) for error in errors]}
+        return 200, {"deleted": content_hash}
+
     async def _query(self, body: bytes | None) -> Response:
         try:
             query = Query.model_validate(_json(body))
@@ -162,10 +235,18 @@ def _dump(value: Any) -> dict[str, Any]:
 
 def _known(route: str, parts: list[str]) -> bool:
     """Существует ли путь при другом методе."""
-    known_paths = {"/health", "/schema", "/axes", "/scalars", "/query", "/plugins"}
+    known_paths = {
+        "/health",
+        "/schema",
+        "/axes",
+        "/scalars",
+        "/query",
+        "/plugins",
+        "/artifacts",
+    }
     if route in known_paths:
         return True
-    return len(parts) == 2 and parts[0] == "objects"
+    return len(parts) == 2 and parts[0] in {"objects", "artifacts"}
 
 
 __all__ = ["HttpApi", "Response"]

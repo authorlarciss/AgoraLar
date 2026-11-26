@@ -9,6 +9,27 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.12.0] - 2025-11-25
+
+### Added
+
+- **Артефакты в продукте** поверх контракта 5 ядра: `agoralar artifact put
+  <файл> --media-type`, `get <hash> [--out]`, `ls [--json]`, `rm <hash>`;
+  `put --artifact role=hash` привязывает артефакт к объекту (метаданные
+  берутся из хранилища, а не вводятся руками).
+- HTTP: `GET /artifacts`, `POST /artifacts` (base64), `GET /artifacts/{hash}`,
+  `DELETE /artifacts/{hash}` (409 `artifact_in_use`, если на артефакт
+  ссылается объект).
+- `plugins/store_json` 0.4.0 и `plugins/store_sqlite` 0.4.0 сохраняют
+  артефакты рядом с объектами (ключ `artifacts` в файле; таблица
+  `artifacts(hash, media_type, data BLOB)`).
+
+### Changed
+
+- **Ядро 0.9.0, контракт 5**: `CORE_CONTRACT_RANGE = ">=5,<6"`, все
+  плагины объявляют `requires_contract >=5,<6` (`filesystem` 0.3.0,
+  `sql` 0.2.0, `http` 0.2.0).
+
 ## [0.11.0] - 2025-11-25
 
 ### Added
