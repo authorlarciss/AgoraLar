@@ -106,7 +106,9 @@ make verify-docker  # то же плюс сборка и запуск конте
 | `test` | `make check` (mypy, import-linter, pytest) | если задан секрет `AXISLAR_TOKEN` |
 | `dist` | сборка колеса и прикрепление к релизу | теги `v*` + `AXISLAR_TOKEN` |
 
-One-time настройка (Settings → Secrets and variables → Actions): создать
+Запустить проверку вручную: `gh workflow run ci.yml` (или кнопка
+«Run workflow» в Actions). One-time настройка
+(Settings → Secrets and variables → Actions): создать
 PAT с доступом на чтение к `authorlarciss/AxisLar` и положить его в
 `AXISLAR_TOKEN`. Без секрета CI не падает молча: job пишет предупреждение
 «секрет AXISLAR_TOKEN не задан — mypy/pytest пропущены», то есть видно, что
