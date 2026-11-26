@@ -32,7 +32,9 @@ agoralar-source-sql = { path = "plugins/source_sql", editable = true }
 agoralar-source-http = { path = "plugins/source_http", editable = true }
 agoralar-analyzer-text = { path = "plugins/analyzer_text", editable = true }
 # Локальная разработка: ядро берётся из собранного колеса соседнего проекта.
-# При обновлении ядра обнови и путь, и диапазон в dependencies.
+# При обновлении ядра обнови путь и диапазон в dependencies, затем `uv lock`
+# (в lock попадает хеш конкретного файла — после пересборки ядра он меняется).
+# CI ставит ядро отдельно (`--no-install-package`), чтобы не зависеть от хеша.
 axislar-core = { path = "../AxisLar/dist/axislar_core-0.10.1-py3-none-any.whl" }
 
 [project.optional-dependencies]

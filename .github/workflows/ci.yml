@@ -60,8 +60,14 @@ jobs:
           echo "ядро $version: $url"
           curl -fsSL -o "../AxisLar/dist/axislar_core-${version}-py3-none-any.whl" "$url"
 
+      # Колесо ядра — файл из релиза, а в uv.lock записан хеш локальной
+      # сборки; они не совпадают, если ядро пересобирали. Поэтому ядро
+      # ставится отдельно, а не через lock.
       - name: Install dependencies
-        run: uv sync --extra dev
+        run: uv sync --extra dev --no-install-package axislar-core
+
+      - name: Установить колесо ядра
+        run: uv pip install --python .venv/bin/python ../AxisLar/dist/axislar_core-*.whl
 
       - name: Check
         run: make check
@@ -93,7 +99,10 @@ jobs:
           curl -fsSL -o "../AxisLar/dist/axislar_core-${version}-py3-none-any.whl" "$url"
 
       - name: Install dependencies
-        run: uv sync --extra dev
+        run: uv sync --extra dev --no-install-package axislar-core
+
+      - name: Установить колесо ядра
+        run: uv pip install --python .venv/bin/python ../AxisLar/dist/axislar_core-*.whl
 
       - name: Build distribution (продукт + плагины)
         run: make dist-all
