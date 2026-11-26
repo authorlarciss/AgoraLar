@@ -23,6 +23,8 @@ on:
       - "lambda/**"
       - "tau/**"
       - "sigma/**"
+    tags:
+      - "v*"
   pull_request:
     branches:
       - nu
