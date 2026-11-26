@@ -79,6 +79,39 @@ make core               # ядро из локального wheel ../AxisLar/di
 make check              # линт, контракты, типы, тесты
 ```
 
+## Как проверить состояние
+
+```bash
+make check          # линт, типы, импорт-контракты, тесты (нужен ядро в .venv)
+make verify         # артефакты → чистый venv → сценарии CLI и HTTP
+make verify-docker  # то же плюс сборка и запуск контейнера
+```
+
+`make verify` ничего не пишет в репозиторий: собирает колесо ядра (или берёт
+готовое из `../AxisLar/dist`), колесо продукта и плагинов, ставит их в
+временный venv и прогоняет то, что видит пользователь: `plugins list`, схему,
+`sync --source sql`, `artifact put` (включая бинарник), `analyze` с
+провенансом, повторный прогон на идемпотентность и HTTP с токеном
+(`/health` открыт, `/schema` — 401/200). Нужны `uv`, `curl`, `python3` и
+соседний репозиторий ядра (`AXISLAR_DIR`).
+
+## CI
+
+`.github/workflows/ci.yml` разделён на два уровня, потому что ядро
+(`axislar-core`) живёт в приватном репозитории `AxisLar`:
+
+| Job | Что проверяет | Когда работает |
+|---|---|---|
+| `lint` | `ruff format --check`, `ruff check` | всегда (ядро не нужно) |
+| `test` | `make check` (mypy, import-linter, pytest) | если задан секрет `AXISLAR_TOKEN` |
+| `dist` | сборка колеса и прикрепление к релизу | теги `v*` + `AXISLAR_TOKEN` |
+
+One-time настройка (Settings → Secrets and variables → Actions): создать
+PAT с доступом на чтение к `authorlarciss/AxisLar` и положить его в
+`AXISLAR_TOKEN`. Без секрета CI не падает молча: job пишет предупреждение
+«секрет AXISLAR_TOKEN не задан — mypy/pytest пропущены», то есть видно, что
+именно не проверено.
+
 ## HTTP и контейнер
 
 ```bash

@@ -467,6 +467,16 @@ make install-pip   # python -m venv + pip install -e ".[dev]"
 ### Локальный CI
 `make ci` — то же, что `make check`. Запускайте перед PR.
 
+Сквозная проверка «как у пользователя» (артефакты в чистом venv, CLI, HTTP,
+опционально контейнер):
+
+    make verify
+    make verify-docker
+
+CI в GitHub устроен так: `lint` работает всегда, `test`/`dist` включаются
+секретом `AXISLAR_TOKEN` (доступ к приватному репозиторию ядра). Без него job
+честно предупреждает и пропускает шаги с ядром, а не падает на ImportError.
+
 ## Python 3.13
 
 Проект пинит Python 3.13. Причины:

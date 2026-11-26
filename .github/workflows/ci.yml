@@ -1,11 +1,18 @@
 name: CI
 
+# Ядро (axislar-core) живёт в приватном репозитории AxisLar, поэтому
+# полноценные тесты невозможны без отдельного токена с доступом к нему.
+# CI честно разделяет два уровня:
+#   lint — ruff без ядра, работает всегда;
+#   test/dist — сценарии с ядром, включаются, когда задан секрет AXISLAR_TOKEN.
+# Если секрета нет, job не падает, а пропускает шаг с предупреждением —
+# так видно, что именно не проверено.
+
 on:
   push:
     branches:
       - nu
       - omega
-      - "omicron/**"
       - "iota/**"
       - "alpha/**"
       - "beta/**"
@@ -20,15 +27,23 @@ on:
     branches:
       - nu
       - omega
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  lint-and-test:
+  lint:
+    name: lint (без ядра)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           version: "latest"
           enable-cache: true
@@ -39,38 +54,122 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev
 
+      - name: Ruff format
+        run: .venv/bin/ruff format --check nu tau eta plugins
+
+      - name: Ruff lint
+        run: .venv/bin/ruff check nu tau eta plugins
+
+  test:
+    name: test (ядро из AxisLar)
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Проверить доступ к ядру
+        id: core
+        env:
+          AXISLAR_TOKEN: ${{ secrets.AXISLAR_TOKEN }}
+        run: |
+          if [ -n "${AXISLAR_TOKEN}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Ядро недоступно::секрет AXISLAR_TOKEN не задан — mypy/pytest/контракты пропущены"
+          fi
+
+      - name: Checkout AxisLar
+        if: steps.core.outputs.available == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: authorlarciss/AxisLar
+          path: .axislar
+          token: ${{ secrets.AXISLAR_TOKEN }}
+
+      - uses: astral-sh/setup-uv@v7
+        if: steps.core.outputs.available == 'true'
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Build core wheel
+        if: steps.core.outputs.available == 'true'
+        run: |
+          uv python install 3.13
+          cd .axislar
+          uv sync --extra dev
+          make dist
+          ls -1 dist
+
+      - name: Install product dependencies and core
+        if: steps.core.outputs.available == 'true'
+        run: |
+          uv sync --extra dev
+          uv pip install --python .venv/bin/python .axislar/dist/axislar_core-*.whl
+
       - name: Check
+        if: steps.core.outputs.available == 'true'
         run: make check
 
   dist:
+    name: dist (теги)
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: lint-and-test
+    needs: lint
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      - name: Проверить доступ к ядру
+        id: core
+        env:
+          AXISLAR_TOKEN: ${{ secrets.AXISLAR_TOKEN }}
+        run: |
+          if [ -n "${AXISLAR_TOKEN}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Ядро недоступно::секрет AXISLAR_TOKEN не задан — колесо ядра в релиз не попадёт"
+          fi
+
+      - name: Checkout AxisLar
+        if: steps.core.outputs.available == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: authorlarciss/AxisLar
+          path: .axislar
+          token: ${{ secrets.AXISLAR_TOKEN }}
+
+      - uses: astral-sh/setup-uv@v7
+        if: steps.core.outputs.available == 'true'
         with:
           version: "latest"
           enable-cache: true
 
-      - name: Set up Python 3.13
-        run: uv python install 3.13
+      - name: Build distribution
+        if: steps.core.outputs.available == 'true'
+        run: |
+          uv python install 3.13
+          cd .axislar && uv sync --extra dev && make dist && cd ..
+          uv sync --extra dev
+          uv pip install --python .venv/bin/python .axislar/dist/axislar_core-*.whl
+          make dist
 
-      - name: Install dependencies
-        run: uv sync --extra dev
-
-      - name: Build distribution (nu -> DIST_PACKAGE)
-        run: make dist
+      - name: Check dist was built
+        if: steps.core.outputs.available == 'true'
+        run: test -n "$(ls -1 dist/*.whl 2>/dev/null)" || (echo "no wheel built" >&2; exit 1)
 
       - name: Upload artifacts
+        if: steps.core.outputs.available == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/*
 
       - name: Attach artifacts to release
+        if: steps.core.outputs.available == 'true'
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*

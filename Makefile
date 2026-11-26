@@ -1,4 +1,4 @@
-.PHONY: help install core install-pip lock lint lint-imports contracts contracts-check strip-template dist typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean docker-context docker-build
+.PHONY: help install core install-pip lock lint lint-imports contracts contracts-check strip-template dist typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean docker-context docker-build verify verify-docker
 
 PYTHON := python3
 VENV := .venv
@@ -34,6 +34,8 @@ help:
 	@echo "  make dist          — собрать дистрибутив с переименованным пакетом"
 	@echo "  make docker-context — собрать контекст docker (wheel-ы ядра, продукта, плагинов)"
 	@echo "  make docker-build  — собрать образ продукта (docker)"
+	@echo "  make verify        — сквозная проверка из wheel: CLI + HTTP"
+	@echo "  make verify-docker — то же плюс сборка и запуск образа"
 	@echo "  make run           — запуск nu.main"
 	@echo "  make clean         — удалить кэши и venv"
 
@@ -146,3 +148,11 @@ docker-context:
 
 docker-build: docker-context
 	docker build -t $(DOCKER_IMAGE):latest build/docker
+
+# Сквозная проверка «как у пользователя»: артефакты → чистый venv → сценарии.
+# --docker добавляет сборку и запуск образа; требует docker и соседний AxisLar.
+verify:
+	bash scripts/verify.sh
+
+verify-docker:
+	bash scripts/verify.sh --docker
