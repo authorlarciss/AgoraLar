@@ -5,7 +5,7 @@
 
 ## 0. Статус (2025-11-25)
 
-**Текущая версия — 0.14.1** на ядре `axislar-core` 0.10.0 (contract 5).
+**Текущая версия — 0.14.2** на ядре `axislar-core` 0.10.1 (contract 5).
 Выполнено: P0–P5 и сверх плана — HTTP, история прогонов, периодический
 `watch`, провенанс и reuse производных фактов. Плагины: `json`, `sqlite`
 (0.5.0), `filesystem` (0.3.0), `sql` (0.2.0), `http` (0.2.0), анализатор
@@ -19,7 +19,8 @@
 CLI `artifact put/get/ls/rm`, HTTP `/artifacts`, бэкенды `json`/`sqlite`
 хранят байты рядом с объектами. В 0.13.0 — HTTP с bearer-токеном и
 контейнером (ADR-0017): без токена только loopback, `/health` открыт,
-образ собирается из wheel. В 0.14.0 — анализаторы как плагины (ADR-0018):
+образ собирается из wheel. В 0.14.2 — MIT, честные зависимости
+(`axislar-core` и пины плагинов), публикация репозитория и пакетов. В 0.14.0 — анализаторы как плагины (ADR-0018):
 `PluginKind.ANALYZER`, `agoralar analyze`, плагин `text` 0.1.0.
 
 ## 1. Что уже есть
@@ -48,12 +49,47 @@ CLI `artifact put/get/ls/rm`, HTTP `/artifacts`, бэкенды `json`/`sqlite`
 
 ## 3. Что дальше (по приоритету)
 
-1. **PyPI** — когда продукт стабилизируется (отложено Пользователем):
-   снимет path-зависимости и вернёт честные `dependencies` в метаданные.
-2. **BotCore/HermesLar** — отдельный проект; карта в
-   `VaultLar/.dsh/FUTURE-bots.md`.
-3. **Анализатор артефактов** — сделано в 0.14.0 (ADR-0018); следующий шаг —
-   анализаторы изображений/эмбеддингов тем же контрактом.
+Критерий готовности указан у каждого пункта; подробности и грабли —
+в `.dsh/NOTES.md` (раздел HANDOFF).
+
+1. **Завершить публикацию в PyPI.** Опубликованы `axislar-core` 0.10.1 и
+   три плагина; `agoralar`, `agoralar-store-json`, `agoralar-store-sqlite`,
+   `agoralar-source-sql` ждут лимита PyPI (4 новых проекта в 24 часа).
+   Продолжить: `scripts/publish.sh --index pypi --resume` либо Trusted
+   Publishing по тегу (job `publish`, ADR-0017/CI).
+   *Готово, когда* `make verify-index` проходит целиком и
+   `pip install agoralar` ставит ядро и все плагины.
+2. **Убрать временные обходы после публикации.** Удалить
+   `[tool.uv.sources]` для ядра, шаг скачивания колеса в CI, обновить
+   установку в README, отозвать bootstrap-токен.
+3. **Образ в `ghcr.io`.** Job в CI с `packages: write`: сборка и публикация
+   `ghcr.io/authorlarciss/agoralar:<версия>` и `:latest`.
+   *Готово, когда* `docker run ghcr.io/authorlarciss/agoralar:latest`
+   отвечает на `/health` без локальной сборки.
+4. **Бенчмарки.** `scripts/bench.py` на 10k/100k объектов для `memory`,
+   `json`, `sqlite`: запись, чтение по `id`, запрос по оси, `sync`.
+   *Готово, когда* числа воспроизводимы и опубликованы в README с
+   конфигурацией машины.
+5. **Гайд «свой плагин».** `lambda/PLUGINS.md` + пример: контракты
+   `IStorageEngine`, `IEntitySource`, `IAnalyzer`, entry points
+   `agoralar.storage`/`source`/`analyzer`, `requires_contract`, контрактные
+   наборы как тесты. *Готово, когда* плагин пишется по гайду без чтения
+   кода продукта.
+6. **Пользовательская документация.** Quickstart (install → конфиг →
+   импорт → `serve`), рецепты (дерево файлов, SQL, HTTP-источник,
+   артефакты + анализатор), модель (оси/фасеты/разреженность), security
+   (токен, TLS за прокси), docker. *Готово, когда* README ≤ 150 строк и
+   ведёт в `docs/`.
+7. **`export`/`import` (JSONL).** Перенос данных между бэкендами и
+   человекочитаемый бэкап (schema, entities, artifacts в base64).
+8. **Потребитель M7.** `GET /features?client=web` в HTTP и `--client` в
+   CLI, чтобы `resolve_feature` использовался в продукте, а не только в
+   тестах ядра.
+9. **Анализаторы изображений/эмбеддингов.** Тем же контрактом `IAnalyzer`;
+   учесть вес образа (Pillow) и `ArtifactMismatch` при совпадении байтов.
+10. **BotCore/HermesLar** — отдельный проект; карта в
+    `VaultLar/.dsh/FUTURE-bots.md`. Профили клиентов из M7 — заготовка
+    именно под него.
 
 ## 4. Риски
 
