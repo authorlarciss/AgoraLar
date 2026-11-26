@@ -9,6 +9,20 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.13.0] - 2025-11-25
+
+### Added
+
+- **Аутентификация HTTP** (ADR-0017): bearer-токен из `--token` или
+  `AGORALAR_TOKEN`, сравнение `secrets.compare_digest`. Без токена —
+  локальный режим; `serve` на не-loopback адресе без токена отказывает
+  (код 2), а не предупреждает. `/health` открыт как проба живости,
+  остальные маршруты (включая `/plugins`, `/artifacts`) требуют токена.
+- **Контейнер**: `Dockerfile` ставит только wheel (ядро, продукт,
+  плагины) плюс `pydantic`/`packaging`, работает от непривилегированного
+  пользователя, данные — в томе `/data`. `make docker-context` собирает
+  контекст из артефактов, `make docker-build` — образ.
+
 ## [0.12.0] - 2025-11-25
 
 ### Added

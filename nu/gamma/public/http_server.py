@@ -38,7 +38,9 @@ class _Handler(BaseHTTPRequestHandler):
 
         body = self.rfile.read(length) if length else None
         try:
-            status, payload = asyncio.run(self.api.handle(method, self.path, body))
+            status, payload = asyncio.run(
+                self.api.handle(method, self.path, body, dict(self.headers))
+            )
         except Exception as error:  # pragma: no cover - защита от падения сервера
             status, payload = 500, {"error": f"internal error: {error}"}
         self._send(status, payload)

@@ -33,11 +33,16 @@ def server(tmp_path: Path) -> Iterator[tuple[int, threading.Thread]]:
 
 
 def request(
-    port: int, method: str, path: str, payload: dict[str, Any] | None = None
+    port: int,
+    method: str,
+    path: str,
+    payload: dict[str, Any] | None = None,
+    extra_headers: dict[str, str] | None = None,
 ) -> tuple[int, dict[str, Any]]:
     connection = HTTPConnection("127.0.0.1", port, timeout=5)
     body = json.dumps(payload).encode("utf-8") if payload is not None else None
     headers = {"Content-Type": "application/json"} if body else {}
+    headers.update(extra_headers or {})
     try:
         connection.request(method, path, body=body, headers=headers)
         response = connection.getresponse()
@@ -90,3 +95,23 @@ def test_body_size_limit(server: tuple[int, threading.Thread]) -> None:
         response.read()
     finally:
         connection.close()
+
+
+def test_auth_over_real_socket(tmp_path: Path) -> None:
+    product = build_product(config=Config(store="json", data=tmp_path / "vault.json"))
+    api = HttpResolver().make_http_api(product, token="s3cret")
+    httpd = make_server(api, "127.0.0.1", 0)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = httpd.server_address[1]
+        assert request(port, "GET", "/schema")[0] == 401
+        status, payload = request(
+            port, "GET", "/schema", extra_headers={"Authorization": "Bearer s3cret"}
+        )
+        assert status == 200 and "schema" in payload
+        assert request(port, "GET", "/health")[0] == 200
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=5)

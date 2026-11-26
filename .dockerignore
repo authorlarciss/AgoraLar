@@ -1,0 +1,6 @@
+# Контекст для docker build — каталог build/docker (см. `make docker-context`).
+# Здесь лежат только wheel, Dockerfile и этот файл.
+**
+!Dockerfile
+!wheels
+!wheels/**

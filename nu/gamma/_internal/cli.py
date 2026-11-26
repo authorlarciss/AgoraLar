@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import base64
 import json
+import os
 import sys
 import tomllib
 from collections.abc import Sequence
@@ -457,6 +458,17 @@ def render_plugins(product: Product, as_json: bool) -> str:
 # ------------------------------------------------------------------ команды
 
 
+def serve_token(args: argparse.Namespace) -> str | None:
+    """Токен HTTP: аргумент, иначе переменная окружения, иначе нет."""
+    raw = args.token or os.environ.get("AGORALAR_TOKEN")
+    return raw or None
+
+
+def is_loopback(host: str) -> bool:
+    """Слушать без токена можно только на петле."""
+    return host in {"localhost", "::1", "[::1]"} or host.startswith("127.")
+
+
 def resolve_config(args: argparse.Namespace) -> Config:
     """Прочитать конфиг: явный `--config` или поиск вверх от cwd."""
     return load_config(args.config)
@@ -557,8 +569,13 @@ async def run(args: argparse.Namespace) -> int:
     if args.command == "serve":
         from nu.psi.contracts.gamma import HttpResolver
 
+        token = serve_token(args)
+        if token is None and not is_loopback(args.host):
+            raise CliError(
+                f"refusing to listen on {args.host} without auth: set --token or AGORALAR_TOKEN"
+            )
         resolver = HttpResolver()
-        api = resolver.make_http_api(product)
+        api = resolver.make_http_api(product, token=token)
         resolver.serve(api, args.host, args.port)
         return 0
 
@@ -672,6 +689,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve = subparsers.add_parser("serve", help="HTTP-интерфейс продукта")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument(
+        "--token",
+        help="bearer-токен HTTP; иначе берётся из AGORALAR_TOKEN. "
+        "Без токена сервер слушает только loopback",
+    )
     serve.set_defaults(command="serve")
 
     sync = subparsers.add_parser("sync", help="синхронизировать хранилище с источником")

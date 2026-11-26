@@ -1,4 +1,4 @@
-.PHONY: help install core install-pip lock lint lint-imports contracts contracts-check strip-template dist typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean
+.PHONY: help install core install-pip lock lint lint-imports contracts contracts-check strip-template dist typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean docker-context docker-build
 
 PYTHON := python3
 VENV := .venv
@@ -32,6 +32,8 @@ help:
 	@echo "  make test-module M=beta — тесты одного модуля с его покрытием"
 	@echo "  make strip-template — снести template-обвязку при форке"
 	@echo "  make dist          — собрать дистрибутив с переименованным пакетом"
+	@echo "  make docker-context — собрать контекст docker (wheel-ы ядра, продукта, плагинов)"
+	@echo "  make docker-build  — собрать образ продукта (docker)"
 	@echo "  make run           — запуск nu.main"
 	@echo "  make clean         — удалить кэши и venv"
 
@@ -126,3 +128,21 @@ clean:
 	rm -rf $(VENV)
 	rm -rf .import_linter_cache
 	rm -rf .coverage htmlcov .mypy_cache
+
+# Образ не тащит исходники: в контекст кладутся только wheel артефактов.
+# Порядок важен — сначала `make dist` в ../AxisLar (ядро), потом здесь.
+DOCKER_IMAGE ?= agoralar
+
+docker-context:
+	@ls ../AxisLar/dist/axislar_core-*.whl >/dev/null 2>&1 || \
+		(echo "no core wheel: run 'make dist' in ../AxisLar" >&2; exit 1)
+	rm -rf build/docker
+	mkdir -p build/docker/wheels
+	cp ../AxisLar/dist/axislar_core-*.whl build/docker/wheels/
+	cp dist/agoralar-*.whl build/docker/wheels/
+	cp plugins/*/dist/*.whl build/docker/wheels/
+	cp Dockerfile .dockerignore build/docker/
+	@ls -1 build/docker/wheels
+
+docker-build: docker-context
+	docker build -t $(DOCKER_IMAGE):latest build/docker

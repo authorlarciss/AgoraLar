@@ -10,6 +10,8 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import secrets
+from collections.abc import Mapping
 from typing import Any
 
 from axislar_core.contracts import (
@@ -29,16 +31,35 @@ from nu.psi.product import Product
 Response = tuple[int, dict[str, Any]]
 
 
+#: Путь, который остаётся открытым при включённом токене: пробы живости.
+OPEN_PATH = "/health"
+
+
 class HttpApi:
-    """Маршруты продукта поверх `Product`."""
+    """Маршруты продукта поверх `Product`.
 
-    def __init__(self, product: Product) -> None:
+    `token=None` — режим «только локально»: проверок нет, и это допустимо
+    лишь на loopback (ADR-0014, ADR-0017). С токеном каждый запрос, кроме
+    `/health`, требует `Authorization: Bearer <token>`.
+    """
+
+    def __init__(self, product: Product, token: str | None = None) -> None:
         self.product = product
+        self.token = token or None
 
-    async def handle(self, method: str, path: str, body: bytes | None) -> Response:
+    async def handle(
+        self,
+        method: str,
+        path: str,
+        body: bytes | None,
+        headers: Mapping[str, str] | None = None,
+    ) -> Response:
         """Обработать один запрос."""
         route = path.split("?", 1)[0].rstrip("/") or "/"
         parts = [part for part in route.split("/") if part]
+
+        if self.token is not None and route != OPEN_PATH and not self._authorized(headers):
+            return 401, {"error": "unauthorized"}
 
         if route == "/health" and method == "GET":
             return 200, {
@@ -100,6 +121,17 @@ class HttpApi:
         if not _known(route, parts):
             return 404, {"error": "not found", "path": route}
         return 405, {"error": "method not allowed", "method": method, "path": route}
+
+    def _authorized(self, headers: Mapping[str, str] | None) -> bool:
+        """Сверить bearer-токен без утечки длины/префикса (`compare_digest`)."""
+        if headers is None:
+            return False
+        presented = headers.get("Authorization") or headers.get("authorization") or ""
+        scheme, _, value = presented.partition(" ")
+        if scheme.lower() != "bearer" or not value:
+            return False
+        assert self.token is not None  # вызывается только при включённом токене
+        return secrets.compare_digest(value.strip(), self.token)
 
     # ----------------------------------------------------------- обработчики
 

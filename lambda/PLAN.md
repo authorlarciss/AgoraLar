@@ -5,7 +5,7 @@
 
 ## 0. Статус (2025-11-25)
 
-**Текущая версия — 0.12.0** на ядре `axislar-core` 0.9.0 (contract 5).
+**Текущая версия — 0.13.0** на ядре `axislar-core` 0.9.0 (contract 5).
 Выполнено: P0–P5 и сверх плана — HTTP, история прогонов, периодический
 `watch`, провенанс и reuse производных фактов. Плагины: `json`, `sqlite`
 (0.4.0), `filesystem` (0.3.0), `sql` (0.2.0), `http` (0.2.0) — все
@@ -17,7 +17,9 @@
 `http`: JSON-массив записей, та же семантика раскладки и разреженности
 (ADR-0016). В 0.12.0 — артефакты поверх контракта 5 ядра (ADR-0019 ядра):
 CLI `artifact put/get/ls/rm`, HTTP `/artifacts`, бэкенды `json`/`sqlite`
-хранят байты рядом с объектами.
+хранят байты рядом с объектами. В 0.13.0 — HTTP с bearer-токеном и
+контейнером (ADR-0017): без токена только loopback, `/health` открыт,
+образ собирается из wheel.
 
 ## 1. Что уже есть
 
@@ -29,7 +31,8 @@ CLI `artifact put/get/ls/rm`, HTTP `/artifacts`, бэкенды `json`/`sqlite`
 | Источник `sql` (таблица/`SELECT` в sqlite, раскладка колонок по осям, `NULL` = разреженность) | `plugins/source_sql` (ADR-0015) |
 | Источник `http` (JSON-API: путь к массиву, те же правила раскладки, разреженность, хэш) | `plugins/source_http` (ADR-0016) |
 | CLI: `schema`, `put`, `show`, `query`, `plugins list`, `store show/use`, `sync`, `watch`, `serve` | `nu/gamma/_internal/cli.py` |
-| HTTP JSON API (`/health`, `/schema`, `/axes`, `/scalars`, `/objects/{id}`, `/query`, `/plugins`) | `nu/gamma/public/http_api.py` (ADR-0014) |
+| HTTP JSON API (`/health`, `/schema`, `/axes`, `/scalars`, `/objects/{id}`, `/query`, `/plugins`, `/artifacts`) с bearer-токеном | `nu/gamma/public/http_api.py` (ADR-0014, ADR-0017) |
+| Контейнер: `Dockerfile`, `make docker-context`/`docker-build` | корень репозитория (ADR-0017) |
 | Конфиг `agoralar.toml` + история прогонов `.agoralar/sync.json` | `nu/iota`, `nu/beta/public/sync_state.py` |
 | Провенанс фасетов и reuse по `content_hash` | через ядро 0.7/0.8 |
 | Артефакты: CLI `artifact ...`, HTTP `/artifacts`, `put --artifact role=hash` | поверх ядра 0.9.0 (ADR-0019 ядра) |
@@ -43,13 +46,11 @@ CLI `artifact put/get/ls/rm`, HTTP `/artifacts`, бэкенды `json`/`sqlite`
 
 ## 3. Что дальше (по приоритету)
 
-1. **HTTP: аутентификация и запуск в контейнере** (сейчас `127.0.0.1` без
-   авторизации — осознанно, ADR-0014).
-2. **PyPI** — когда продукт стабилизируется (отложено Пользователем):
+1. **PyPI** — когда продукт стабилизируется (отложено Пользователем):
    снимет path-зависимости и вернёт честные `dependencies` в метаданные.
-3. **BotCore/HermesLar** — отдельный проект; карта в
+2. **BotCore/HermesLar** — отдельный проект; карта в
    `VaultLar/.dsh/FUTURE-bots.md`.
-4. **Анализатор артефактов** (вне ядра): заполнение `preview`/`embedding`
+3. **Анализатор артефактов** (вне ядра): заполнение `preview`/`embedding`
    через `artifact put` + `put --artifact`; ядро только хранит байты.
 
 ## 4. Риски

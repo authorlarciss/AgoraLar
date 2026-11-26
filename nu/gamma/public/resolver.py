@@ -31,9 +31,9 @@ class GammaResolver:
 class HttpResolver:
     """Фабрика HTTP-интерфейса продукта."""
 
-    def make_http_api(self, product: Product) -> HttpApi:
-        """Маршруты продукта (тестируются без сокетов)."""
-        return HttpApi(product)
+    def make_http_api(self, product: Product, token: str | None = None) -> HttpApi:
+        """Маршруты продукта (тестируются без сокетов); `token` включает auth."""
+        return HttpApi(product, token=token)
 
     def make_http_server(
         self, api: HttpApi, host: str = "127.0.0.1", port: int = 8000

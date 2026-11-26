@@ -28,6 +28,9 @@
   и делятся между объектами: `artifact put/get/ls/rm` и маршруты
   `/artifacts` в HTTP. Ссылка живёт в объекте (`put --artifact role=hash`),
   сами байты — отдельно.
+- **Безопасность HTTP.** Bearer-токен (`--token` или `AGORALAR_TOKEN`);
+  без токена сервер слушает только loopback, открыт лишь `/health`
+  (ADR-0017).
 - **Конфиг и состояние.** Где лежат данные, какой бэкенд активен, какие
   плагины включены.
 
@@ -73,9 +76,32 @@ make core               # ядро из локального wheel ../AxisLar/di
 make check              # линт, контракты, типы, тесты
 ```
 
+## HTTP и контейнер
+
+```bash
+# локально, без токена — только loopback
+agoralar serve
+
+# наружу — с токеном
+export AGORALAR_TOKEN=...
+agoralar serve --host 0.0.0.0 --port 8000
+
+# образ: wheel-ы ядра, продукта и плагинов кладутся в контекст
+make dist && (cd ../AxisLar && make dist) && make docker-context
+make docker-build
+docker run --rm -p 8000:8000 -e AGORALAR_TOKEN=... -v agoralar-data:/data agoralar
+```
+
+Токен обязателен для любого не-loopback адреса: `serve` откажет (код 2).
+Контейнер работает от `uid 10001`, поэтому именованный том — рабочий
+вариант; bind-mount хостового каталога нужно либо заранее отдать этому
+uid, либо запускать с `--user $(id -u):$(id -g)`. TLS, лимиты и ротация —
+за обратным прокси (ADR-0017).
+
 ## Статус
 
-`0.12.0`: реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
+`0.13.0`: реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
+HTTP с bearer-токеном и образом в `Dockerfile`,
 источники `filesystem`, `sql` и `http`, CLI (`sync`, `watch`, `serve` — HTTP), конфиг `agoralar.toml`,
 история прогонов, работа на ядре 0.8.0 (провенанс, reuse по хэшу).
 План — `lambda/PLAN.md`, решения — `lambda/adr/`.

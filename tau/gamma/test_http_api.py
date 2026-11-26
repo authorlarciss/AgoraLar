@@ -251,3 +251,57 @@ async def test_artifact_in_use_is_conflict(tmp_path: Path) -> None:
     status, payload = await call(target, "DELETE", f"/artifacts/{content_hash}")
     assert status == 409
     assert payload["errors"][0]["code"] == "artifact_in_use"
+
+
+# ------------------------------------------------- аутентификация (ADR-0017)
+
+
+def secured(tmp_path: Path) -> HttpApi:
+    product = build_product(config=Config(store="json", data=tmp_path / "vault.json"))
+    return HttpResolver().make_http_api(product, token="s3cret")
+
+
+async def call_with(
+    target: HttpApi,
+    method: str,
+    path: str,
+    payload: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, Any]]:
+    body = json.dumps(payload).encode("utf-8") if payload is not None else None
+    return await target.handle(method, path, body, headers)
+
+
+async def test_token_is_required(tmp_path: Path) -> None:
+    target = secured(tmp_path)
+    assert (await call(target, "GET", "/schema"))[0] == 401
+    assert (await call(target, "GET", "/artifacts"))[0] == 401
+
+    status, payload = await call_with(
+        target, "GET", "/schema", headers={"Authorization": "Bearer s3cret"}
+    )
+    assert status == 200 and "schema" in payload
+
+
+async def test_health_stays_open(tmp_path: Path) -> None:
+    status, payload = await call_with(secured(tmp_path), "GET", "/health")
+    assert status == 200
+    assert payload["store"] == "json", "проба живости не требует токена"
+
+
+async def test_wrong_scheme_and_value_are_rejected(tmp_path: Path) -> None:
+    target = secured(tmp_path)
+    for header in ("s3cret", "Basic s3cret", "Bearer wrong", "Bearer "):
+        status, _ = await call_with(target, "GET", "/schema", headers={"Authorization": header})
+        assert status == 401, header
+
+
+async def test_lowercase_header_name_is_accepted(tmp_path: Path) -> None:
+    status, _ = await call_with(
+        secured(tmp_path), "GET", "/schema", headers={"authorization": "Bearer s3cret"}
+    )
+    assert status == 200
+
+
+async def test_no_token_means_open_local_mode(tmp_path: Path) -> None:
+    assert (await call(api(tmp_path), "GET", "/schema"))[0] == 200
