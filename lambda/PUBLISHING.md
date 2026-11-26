@@ -74,6 +74,44 @@ uv venv /tmp/p && uv pip install --python /tmp/p/bin/python agoralar
 /tmp/p/bin/agoralar plugins list
 ```
 
+## 3a. Лимит на новые проекты (свежий аккаунт)
+
+PyPI ограничивает создание **новых** проектов: для новых аккаунтов это
+**4 проекта в 24 часа** (подтверждено в
+[pypi/support#11479](https://github.com/pypi/support/issues/11479); в
+документации лимит не описан). Проявляется как
+`429 Too Many Requests: Too many new projects created`.
+
+Что делать:
+
+- подождать сутки и продолжить: `scripts/publish.sh --index pypi --resume`
+  (без пересборки, уже опубликованные проекты пропускаются);
+- либо попросить исключение: <https://github.com/pypi/support/issues>
+  (owner-аккаунт, ссылка на проект).
+
+Скрипт различает эти случаи: `--resume` печатает `skip` для готовых
+проектов, а на лимите завершается с кодом 3 и подсказкой.
+
+## 3b. Личные коды восстановления PyPI
+
+PyPI выдаёт recovery-коды для 2FA (файл `PyPI-Recovery-Codes-*.txt`). Их
+нельзя держать в `~/Downloads` (каталог читается всеми) и рядом с токеном:
+
+```bash
+mkdir -p ~/.config/pypi && chmod 700 ~/.config/pypi
+chmod 600 ~/Downloads/PyPI-Recovery-Codes-*.txt
+mv ~/Downloads/PyPI-Recovery-Codes-*.txt ~/.config/pypi/recovery-codes.txt
+
+# зашифровать (спросит парольную фразу; её хранить отдельно от файла):
+gpg --symmetric --cipher-algo AES256 ~/.config/pypi/recovery-codes.txt
+gpg -d ~/.config/pypi/recovery-codes.txt.gpg | head -1   # проверить
+shred -u ~/.config/pypi/recovery-codes.txt               # после проверки
+```
+
+Лучший вариант — менеджер паролей (KeePassXC/Bitwarden) или бумажная копия в
+сейфе. `shred` на SSD не гарантирует затирание — при паранойе считать файл
+скомпрометированным и перевыпустить коды в PyPI.
+
 ## 4. Trusted Publishing (без токенов) — для следующих релизов
 
 PyPI умеет пускать CI по OIDC: токен не хранится нигде, GitHub выдаёт
