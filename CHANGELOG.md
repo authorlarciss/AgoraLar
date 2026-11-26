@@ -9,6 +9,15 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.14.1] - 2025-11-25
+
+### Changed
+
+- Ядро **0.10.0** (контракт 5): в нём появились `ClientProfile`,
+  `FeatureManifest`, `FeatureVariant` и `resolve_feature` (ADR-0020 ядра).
+  Продукт ничего не переписывает: контракт не менялся, диапазон
+  `>=5,<6` тот же.
+
 ## [0.14.0] - 2025-11-25
 
 ### Added
