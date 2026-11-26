@@ -112,23 +112,37 @@ shred -u ~/.config/pypi/recovery-codes.txt               # после прове
 сейфе. `shred` на SSD не гарантирует затирание — при паранойе считать файл
 скомпрометированным и перевыпустить коды в PyPI.
 
-## 4. Trusted Publishing (без токенов) — для следующих релизов
+## 4. Trusted Publishing (без токенов)
 
-PyPI умеет пускать CI по OIDC: токен не хранится нигде, GitHub выдаёт
-кратковременный пропуск.
+PyPI пускает CI по OIDC: токен нигде не хранится, GitHub выдаёт
+краткоживущий пропуск. В CI уже есть job `publish` (тег `v*`), который
+публикует продукт и каждый плагин отдельным вызовом.
 
-1. Для уже существующего проекта: *Manage* → *Publishing* → *Add a new
-   publisher* → GitHub: owner `authorlarciss`, repository `AgoraLar`,
-   workflow `ci.yml`, environment `release`.
-2. Для проекта, которого ещё нет: *Publishing* → *Pending publisher* с теми
-   же полями (имя проекта вводится вручную).
-3. В workflow добавить job с `permissions: id-token: write` и
-   `uv publish --trusted-publishing always`.
-4. Публикация идёт по тегу; в этом репозитории push-события сейчас не
-   создают прогоны, поэтому запускать вручную:
-   `gh workflow run ci.yml --ref v0.14.2`.
+Что нужно сделать один раз в PyPI (для каждого из 7 проектов: `agoralar`,
+`agoralar-store-json`, `agoralar-store-sqlite`,
+`agoralar-source-filesystem`, `agoralar-source-sql`, `agoralar-source-http`,
+`agoralar-analyzer-text`):
 
-Пока этого нет — работает путь с токеном из раздела 3.
+1. Если проект уже существует: *Manage* → *Publishing* → *Add a new
+   publisher*.
+2. Если проекта ещё нет: *Publishing* → *Add a pending publisher* (имя
+   проекта вводится вручную).
+3. Заполнить одинаково для всех: **Owner** `authorlarciss`,
+   **Repository** `AgoraLar`, **Workflow** `ci.yml`,
+   **Environment** `release`.
+
+После этого публикация — тег:
+
+```bash
+git tag -a v0.14.3 -m "..." && git push origin v0.14.3
+```
+
+CI соберёт артефакты, прикрепит их к релизу и опубликует в PyPI. Токен
+`UV_PUBLISH_TOKEN` для этого не нужен; путь с токеном (раздел 3) остаётся
+запасным.
+
+Лимит «4 новых проекта в 24 часа» действует и здесь: он про создание
+проектов, а не про способ аутентификации.
 
 ## 5. Ограничения и подводные камни
 

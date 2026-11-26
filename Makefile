@@ -1,4 +1,4 @@
-.PHONY: help install core install-pip lock lint lint-imports contracts contracts-check strip-template dist dist-all typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean docker-context docker-build verify verify-docker publish-check publish-test publish
+.PHONY: help install core install-pip lock lint lint-imports contracts contracts-check strip-template dist dist-all typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean docker-context docker-build verify verify-docker verify-index publish-check publish-test publish
 
 PYTHON := python3
 VENV := .venv
@@ -37,6 +37,7 @@ help:
 	@echo "  make docker-build  — собрать образ продукта (docker)"
 	@echo "  make verify        — сквозная проверка из wheel: CLI + HTTP"
 	@echo "  make verify-docker — то же плюс сборка и запуск образа"
+	@echo "  make verify-index  — установка из PyPI (когда пакет опубликован)"
 	@echo "  make publish-check — собрать и проверить артефакты (twine), без загрузки"
 	@echo "  make publish-test  — публикация в TestPyPI (нужен UV_PUBLISH_TOKEN)"
 	@echo "  make publish       — публикация в PyPI (нужен UV_PUBLISH_TOKEN)"
@@ -160,6 +161,9 @@ verify:
 
 verify-docker:
 	bash scripts/verify.sh --docker
+
+verify-index:
+	bash scripts/verify.sh --from-index
 
 # Релизные артефакты: продукт плюс все плагины в одном dist/.
 # Иначе пользователю пришлось бы собирать плагины самому.

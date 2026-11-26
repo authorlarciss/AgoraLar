@@ -13,7 +13,14 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 AXISLAR_DIR=${AXISLAR_DIR:-$ROOT/../AxisLar}
 WITH_DOCKER=0
-[[ "${1:-}" == "--docker" ]] && WITH_DOCKER=1
+FROM_INDEX=0
+for arg in "$@"; do
+    case "$arg" in
+        --docker) WITH_DOCKER=1 ;;
+        --from-index) FROM_INDEX=1 ;;
+        *) echo "неизвестный аргумент: $arg" >&2; exit 2 ;;
+    esac
+done
 
 WORK=$(mktemp -d)
 STARTED_SERVER=""
@@ -42,6 +49,26 @@ uv --version
 echo "репозиторий: $ROOT"
 echo "ядро: $AXISLAR_DIR"
 
+if [[ "$FROM_INDEX" == "1" ]]; then
+    step "Установка из индекса (PyPI)"
+    if ! curl -fsS -o /dev/null "https://pypi.org/pypi/agoralar/json"; then
+        echo "  agoralar ещё не опубликован — проверка из индекса пропущена"
+        exit 0
+    fi
+    uv venv "$VENV" >/dev/null
+    uv pip install --python "$VENV/bin/python" agoralar >/dev/null || {
+        echo "установка agoralar из PyPI не удалась" >&2
+        exit 1
+    }
+    PY="$VENV/bin/python"
+    CLI="$VENV/bin/agoralar"
+    "$PY" -c "import axislar_core, agora_nu.mu.public as m; print(f'  из индекса: ядро {axislar_core.__version__}, продукт {m.__version__}')"
+    SCENARIOS_ONLY=1
+else
+    SCENARIOS_ONLY=0
+fi
+
+if [[ "$SCENARIOS_ONLY" == "0" ]]; then
 step "Колесо ядра"
 CORE_WHEEL=$(ls "$AXISLAR_DIR"/dist/axislar_core-*.whl 2>/dev/null | sort | tail -1 || true)
 if [[ -z "$CORE_WHEEL" ]]; then
@@ -64,6 +91,8 @@ uv pip install --python "$PY" \
     --find-links "$AXISLAR_DIR/dist" \
     agoralar >/dev/null
 "$PY" -c "import axislar_core, agora_nu.mu.public as m; print(f'  ядро {axislar_core.__version__} (contract {axislar_core.CONTRACT_VERSION}), продукт {m.__version__}')"
+
+fi
 
 step "Сценарий: плагины и схема"
 mkdir -p "$WORK/run"

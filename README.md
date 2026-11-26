@@ -1,5 +1,9 @@
 # AgoraLar
 
+[![CI](https://github.com/authorlarciss/AgoraLar/actions/workflows/ci.yml/badge.svg?branch=nu)](https://github.com/authorlarciss/AgoraLar/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/agoralar)](https://pypi.org/project/agoralar/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 Продуктовая оболочка ядра [AxisLar](https://github.com/authorlarciss/AxisLar):
 интерфейсы, реестр плагинов и готовые хранилища. Отдельный проект на базе
 [BaseLar](https://github.com/authorlarciss/BaseLar) v0.7.4.
@@ -85,6 +89,7 @@ make check              # линт, контракты, типы, тесты
 make check          # линт, типы, импорт-контракты, тесты (нужен ядро в .venv)
 make verify         # артефакты → чистый venv → сценарии CLI и HTTP
 make verify-docker  # то же плюс сборка и запуск контейнера
+make verify-index   # установка из PyPI и те же сценарии (после публикации)
 ```
 
 `make verify` ничего не пишет в репозиторий: собирает колесо ядра (или берёт
@@ -97,8 +102,7 @@ make verify-docker  # то же плюс сборка и запуск конте
 
 ## CI
 
-`.github/workflows/ci.yml` разделён на два уровня, потому что ядро
-(`axislar-core`) живёт в приватном репозитории `AxisLar`:
+`.github/workflows/ci.yml` — три job'а:
 
 | Job | Что проверяет | Когда работает |
 |---|---|---|
