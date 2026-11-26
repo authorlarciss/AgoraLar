@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agoralar-analyzer-text"
+version = "0.1.0"
+description = "Текстовый предпросмотр как артефакт AxisLar (плагин AgoraLar)"
+readme = "README.md"
+requires-python = ">=3.13,<3.15"
+# Плагин не зависит ни от ядра, ни от продукта: контракт структурный.
+dependencies = []
+
+[project.entry-points."agoralar.analyzer"]
+text = "agora_analyzer_text:plugin"
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "mypy>=1.10", "ruff>=0.6"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agora_analyzer_text*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]

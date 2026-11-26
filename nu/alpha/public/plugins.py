@@ -13,6 +13,7 @@ class PluginKind(StrEnum):
 
     STORAGE = "storage"
     SOURCE = "source"
+    ANALYZER = "analyzer"
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,7 +21,9 @@ class PluginManifest:
     """То, что возвращает точка входа плагина.
 
     `factory` получает настройки из конфига продукта и возвращает готовый
-    объект: для `storage` — реализацию `IStorageEngine` из ядра.
+    объект: для `storage` — реализацию `IStorageEngine` из ядра, для
+    `source` — `IEntitySource`, для `analyzer` — объект с `accepts`/
+    `analyze` (см. `beta.IAnalyzer`).
     """
 
     name: str

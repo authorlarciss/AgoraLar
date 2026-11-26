@@ -18,6 +18,7 @@ dependencies = [
     "agoralar-source-filesystem",
     "agoralar-source-sql",
     "agoralar-source-http",
+    "agoralar-analyzer-text",
 ]
 
 [tool.uv.sources]
@@ -26,6 +27,7 @@ agoralar-store-sqlite = { path = "plugins/store_sqlite", editable = true }
 agoralar-source-filesystem = { path = "plugins/source_filesystem", editable = true }
 agoralar-source-sql = { path = "plugins/source_sql", editable = true }
 agoralar-source-http = { path = "plugins/source_http", editable = true }
+agoralar-analyzer-text = { path = "plugins/analyzer_text", editable = true }
 
 [project.optional-dependencies]
 dev = [

@@ -1,5 +1,6 @@
 """Публичный API модуля beta продукта: реестр плагинов и состояние sync."""
 
+from nu.beta.public.analyzers import IAnalyzer as IAnalyzer
 from nu.beta.public.registry import ENTRY_GROUPS as ENTRY_GROUPS
 from nu.beta.public.registry import PluginRegistry as PluginRegistry
 from nu.beta.public.registry import RegistryState as RegistryState
@@ -16,6 +17,7 @@ from nu.beta.public.sync_state import state_path_for as state_path_for
 
 __all__ = [
     "ENTRY_GROUPS",
+    "IAnalyzer",
     "STATE_VERSION",
     "PluginRegistry",
     "RegistryState",

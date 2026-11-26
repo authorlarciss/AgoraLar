@@ -29,6 +29,7 @@ from axislar_core.contracts import (
     Filter,
     MeasurableValue,
     Operator,
+    Provenance,
     Query,
     QueryResult,
     ReferenceValue,
@@ -326,6 +327,95 @@ async def run_watch(args: argparse.Namespace, product: Product, config: Config) 
         await asyncio.sleep(args.interval)
 
 
+async def run_analyze(args: argparse.Namespace, product: Product, config: Config) -> int:
+    """Производные артефакты: входная роль → роль, названная анализатором."""
+    manifest = product.registry.get(args.analyzer)
+    options: dict[str, object] = config.plugin_options_for(args.analyzer)
+    options.update(parse_options(args.option))
+    analyzer = manifest.factory(options)
+
+    from nu.psi.contracts.beta import IAnalyzer
+
+    if not isinstance(analyzer, IAnalyzer):
+        raise CliError(f"plugin {args.analyzer!r} is not an analyzer")
+
+    entities = await product.core.storage.list_entities()
+    analyzed = skipped_type = up_to_date = 0
+    for entity in entities:
+        reference = entity.artifacts.get(args.input_role)
+        if reference is None:
+            continue
+        if args.output_role and args.output_role in entity.artifacts and not args.force:
+            up_to_date += 1
+            continue
+
+        artifact = await product.core.get_artifact(reference.content_hash)
+        if artifact is None:
+            print(
+                f"warning: artifact {reference.content_hash!r} is missing for {entity.id}",
+                file=sys.stderr,
+            )
+            continue
+        if not analyzer.accepts(artifact.media_type):
+            skipped_type += 1
+            continue
+
+        role, data, media_type = analyzer.analyze(artifact.data, artifact.media_type)
+        if (
+            not isinstance(role, str)
+            or not role
+            or not isinstance(data, bytes)
+            or not isinstance(media_type, str)
+            or not media_type
+        ):
+            raise CliError(f"analyzer {args.analyzer!r} returned an invalid result")
+        if role in entity.artifacts and not args.force:
+            up_to_date += 1
+            continue
+
+        derived = make_artifact(data, media_type)
+        analyzed += 1
+        if not args.apply:
+            continue
+
+        errors = await product.core.put_artifact(derived)
+        if errors:
+            print_errors(errors)
+            return 2
+        updated = entity.model_copy(
+            update={
+                "artifacts": {
+                    **entity.artifacts,
+                    role: ArtifactRef(
+                        content_hash=derived.content_hash,
+                        media_type=derived.media_type,
+                        size=derived.size,
+                        derived_by=Provenance(
+                            plugin=args.analyzer,
+                            version=analyzer.version,
+                            at=sync_now(),
+                        ),
+                    ),
+                }
+            }
+        )
+        errors = await product.core.upsert(updated)
+        if errors:
+            print_errors(errors)
+            return 2
+
+    print(f"analyzer: {analyzer.describe()}")
+    print(
+        f"scanned: {len(entities)}; analyzed: {analyzed}; "
+        f"skipped by media type: {skipped_type}; up to date: {up_to_date}"
+    )
+    if not args.apply:
+        print("dry run: use --apply to write changes")
+    else:
+        print(f"applied: {analyzed}")
+    return 0
+
+
 async def put_artifact(args: argparse.Namespace, product: Product) -> int:
     """Положить файл в хранилище артефактов; печатает адрес (хэш)."""
     try:
@@ -579,6 +669,9 @@ async def run(args: argparse.Namespace) -> int:
         resolver.serve(api, args.host, args.port)
         return 0
 
+    if args.command == "analyze":
+        return await run_analyze(args, product, config)
+
     if args.command == "sync":
         return await run_sync(args, product, config)
 
@@ -639,6 +732,15 @@ def build_parser() -> argparse.ArgumentParser:
     add_scalar.add_argument("--name", required=True)
     add_scalar.add_argument("--searchable", action="store_true")
     add_scalar.set_defaults(command="schema-add-scalar")
+
+    analyze = subparsers.add_parser("analyze", help="производные артефакты анализатором")
+    analyze.add_argument("--analyzer", default="text", help="имя плагина-анализатора")
+    analyze.add_argument("--input-role", default="original", help="роль входного артефакта")
+    analyze.add_argument("--output-role", help="подсказка: готовую роль не пересчитывать")
+    analyze.add_argument("--option", action="append", default=[], metavar="KEY=VALUE")
+    analyze.add_argument("--force", action="store_true", help="пересчитать даже готовое")
+    analyze.add_argument("--apply", action="store_true", help="записать (иначе dry run)")
+    analyze.set_defaults(command="analyze")
 
     artifact = subparsers.add_parser("artifact", help="артефакты: байты по хэшу")
     artifact_sub = artifact.add_subparsers(dest="artifact_command", required=True)

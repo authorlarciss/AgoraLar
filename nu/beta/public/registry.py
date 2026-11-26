@@ -21,6 +21,7 @@ from nu.psi.contracts.mu import CORE_CONTRACT_RANGE
 ENTRY_GROUPS: dict[PluginKind, str] = {
     PluginKind.STORAGE: "agoralar.storage",
     PluginKind.SOURCE: "agoralar.source",
+    PluginKind.ANALYZER: "agoralar.analyzer",
 }
 
 

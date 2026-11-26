@@ -28,7 +28,12 @@ from axislar_core.contracts import (
 )
 
 #: Версия формата файла. Меняется при несовместимом изменении.
-STORE_VERSION = 1
+#: 2 — артефакты пишутся base64url (`Artifact.model_dump_json`), 1 — не было.
+STORE_VERSION = 2
+
+#: Версии, которые принимаем на чтение: 1 читается, только если в файле нет
+#: артефактов (в 1 артефакты хранились как UTF-8 и бинарники ломались).
+READABLE_VERSIONS = (1, STORE_VERSION)
 
 #: Контракт ядра, с которым совместим плагин.
 REQUIRES_CONTRACT = ">=5,<6"
@@ -68,10 +73,16 @@ class JsonStore(IStorageEngine):
         except json.JSONDecodeError as error:
             raise JsonStoreError(f"broken JSON in {self._path}: {error}") from error
 
-        if not isinstance(raw, dict) or raw.get("version") != STORE_VERSION:
+        if not isinstance(raw, dict) or raw.get("version") not in READABLE_VERSIONS:
             found = raw.get("version") if isinstance(raw, dict) else None
             raise JsonStoreError(
                 f"unsupported store version in {self._path}: {found!r} (expected {STORE_VERSION})"
+            )
+
+        if raw["version"] == 1 and raw.get("artifacts"):
+            raise JsonStoreError(
+                f"store {self._path} is version 1 with artifacts: they were written as UTF-8 "
+                "and binary data is unreliable; re-import them into a version 2 store"
             )
 
         try:

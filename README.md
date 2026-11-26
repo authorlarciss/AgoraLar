@@ -28,6 +28,9 @@
   и делятся между объектами: `artifact put/get/ls/rm` и маршруты
   `/artifacts` в HTTP. Ссылка живёт в объекте (`put --artifact role=hash`),
   сами байты — отдельно.
+- **Анализаторы.** Производные артефакты делают плагины вида `analyzer`
+  (`agoralar analyze`): входная роль → роль, названная анализатором, с
+  провенансом `plugin@version`. В комплекте — `text` (предпросмотр).
 - **Безопасность HTTP.** Bearer-токен (`--token` или `AGORALAR_TOKEN`);
   без токена сервер слушает только loopback, открыт лишь `/health`
   (ADR-0017).
@@ -57,7 +60,7 @@
 
 Плагины — отдельные пакеты в `plugins/`: `agoralar-store-json`,
 `agoralar-store-sqlite`, `agoralar-source-filesystem`, `agoralar-source-sql`,
-`agoralar-source-http`.
+`agoralar-source-http`, `agoralar-analyzer-text`.
 Продукт находит их через entry points (`agoralar.storage`, `agoralar.source`)
 и проверяет совместимость с `CONTRACT_VERSION` ядра; сами плагины зависят
 только от `axislar-core`.
@@ -100,8 +103,8 @@ uid, либо запускать с `--user $(id -u):$(id -g)`. TLS, лимит�
 
 ## Статус
 
-`0.13.0`: реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
-HTTP с bearer-токеном и образом в `Dockerfile`,
+`0.14.0`: реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
+HTTP с bearer-токеном и образом в `Dockerfile`, анализатор текста,
 источники `filesystem`, `sql` и `http`, CLI (`sync`, `watch`, `serve` — HTTP), конфиг `agoralar.toml`,
 история прогонов, работа на ядре 0.8.0 (провенанс, reuse по хэшу).
 План — `lambda/PLAN.md`, решения — `lambda/adr/`.

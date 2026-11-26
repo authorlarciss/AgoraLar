@@ -6,6 +6,7 @@ requires-python = ">=3.13, <3.15"
 name = "agoralar"
 source = { editable = "." }
 dependencies = [
+    { name = "agoralar-analyzer-text" },
     { name = "agoralar-source-filesystem" },
     { name = "agoralar-source-http" },
     { name = "agoralar-source-sql" },
@@ -27,6 +28,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "agoralar-analyzer-text", editable = "plugins/analyzer_text" },
     { name = "agoralar-source-filesystem", editable = "plugins/source_filesystem" },
     { name = "agoralar-source-http", editable = "plugins/source_http" },
     { name = "agoralar-source-sql", editable = "plugins/source_sql" },
@@ -39,6 +41,20 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
+]
+provides-extras = ["dev"]
+
+[[package]]
+name = "agoralar-analyzer-text"
+version = "0.1.0"
+source = { editable = "plugins/analyzer_text" }
+
+[package.metadata]
+requires-dist = [
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
 ]
 provides-extras = ["dev"]
@@ -87,7 +103,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-store-json"
-version = "0.4.0"
+version = "0.5.0"
 source = { editable = "plugins/store_json" }
 
 [package.metadata]

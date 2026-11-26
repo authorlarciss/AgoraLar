@@ -5,11 +5,11 @@
 
 ## 0. Статус (2025-11-25)
 
-**Текущая версия — 0.13.0** на ядре `axislar-core` 0.9.0 (contract 5).
+**Текущая версия — 0.14.0** на ядре `axislar-core` 0.9.1 (contract 5).
 Выполнено: P0–P5 и сверх плана — HTTP, история прогонов, периодический
 `watch`, провенанс и reuse производных фактов. Плагины: `json`, `sqlite`
-(0.4.0), `filesystem` (0.3.0), `sql` (0.2.0), `http` (0.2.0) — все
-`requires_contract >=5,<6`.
+(0.5.0), `filesystem` (0.3.0), `sql` (0.2.0), `http` (0.2.0), анализатор
+`text` (0.1.0) — все `requires_contract >=5,<6`.
 
 В 0.10.0 добавлено: параметры источника из `[plugins.<имя>]` и `--option`
 (ADR-0015) и плагин-источник `sql` (sqlite, только чтение; `NULL` = отсутствие
@@ -19,7 +19,8 @@
 CLI `artifact put/get/ls/rm`, HTTP `/artifacts`, бэкенды `json`/`sqlite`
 хранят байты рядом с объектами. В 0.13.0 — HTTP с bearer-токеном и
 контейнером (ADR-0017): без токена только loopback, `/health` открыт,
-образ собирается из wheel.
+образ собирается из wheel. В 0.14.0 — анализаторы как плагины (ADR-0018):
+`PluginKind.ANALYZER`, `agoralar analyze`, плагин `text` 0.1.0.
 
 ## 1. Что уже есть
 
@@ -35,7 +36,8 @@ CLI `artifact put/get/ls/rm`, HTTP `/artifacts`, бэкенды `json`/`sqlite`
 | Контейнер: `Dockerfile`, `make docker-context`/`docker-build` | корень репозитория (ADR-0017) |
 | Конфиг `agoralar.toml` + история прогонов `.agoralar/sync.json` | `nu/iota`, `nu/beta/public/sync_state.py` |
 | Провенанс фасетов и reuse по `content_hash` | через ядро 0.7/0.8 |
-| Артефакты: CLI `artifact ...`, HTTP `/artifacts`, `put --artifact role=hash` | поверх ядра 0.9.0 (ADR-0019 ядра) |
+| Артефакты: CLI `artifact ...`, HTTP `/artifacts`, `put --artifact role=hash` | поверх ядра 0.9.x (ADR-0019 ядра) |
+| Анализаторы: `agoralar analyze`, плагин `text`, провенанс в `derived_by` | `nu/beta/public/analyzers.py`, `plugins/analyzer_text` (ADR-0018) |
 
 ## 2. Не цели
 
@@ -50,8 +52,8 @@ CLI `artifact put/get/ls/rm`, HTTP `/artifacts`, бэкенды `json`/`sqlite`
    снимет path-зависимости и вернёт честные `dependencies` в метаданные.
 2. **BotCore/HermesLar** — отдельный проект; карта в
    `VaultLar/.dsh/FUTURE-bots.md`.
-3. **Анализатор артефактов** (вне ядра): заполнение `preview`/`embedding`
-   через `artifact put` + `put --artifact`; ядро только хранит байты.
+3. **Анализатор артефактов** — сделано в 0.14.0 (ADR-0018); следующий шаг —
+   анализаторы изображений/эмбеддингов тем же контрактом.
 
 ## 4. Риски
 

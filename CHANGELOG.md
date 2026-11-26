@@ -9,6 +9,30 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.14.0] - 2025-11-25
+
+### Added
+
+- **Анализаторы как плагины продукта** (ADR-0018): вид
+  `PluginKind.ANALYZER` и entry point `agoralar.analyzer`; контракт
+  структурный (`IAnalyzer`: `version`, `describe`, `accepts`, `analyze`),
+  поэтому плагин не импортирует ни ядро, ни продукт.
+- `agoralar analyze --analyzer text [--input-role original]
+  [--output-role preview] [--option k=v] [--force] [--apply]`: берёт
+  входной артефакт, кладёт производный (`put_artifact`, дедупликация по
+  хэшу) и обновляет объект ссылкой с `derived_by`. Dry run по умолчанию,
+  повторный прогон ничего не пересчитывает.
+- Плагин **`agoralar-analyzer-text` 0.1.0**: предпросмотр текста
+  (обрезка по символам, UTF-8 с `errors="replace"`), без внешних
+  зависимостей.
+
+### Fixed
+
+- `plugins/store_json` 0.5.0 понимает формат **2**: `Artifact` сериализуется
+  base64url (ядро 0.9.1), бинарные артефакты больше не ломают запись.
+  Файл версии 1 читается, только если в нём нет артефактов; иначе —
+  понятная ошибка с требованием переимпорта.
+
 ## [0.13.0] - 2025-11-25
 
 ### Added

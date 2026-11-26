@@ -35,14 +35,18 @@ class Config:
             options.setdefault("path", str(self.data))
         return options
 
-    def source_options_for(self, source: str) -> dict[str, Any]:
-        """Параметры плагина-источника: только его секция, без `data`.
+    def plugin_options_for(self, name: str) -> dict[str, Any]:
+        """Параметры плагина: только его секция, без `data`.
 
-        `data` — путь хранилища, а не источника; подставлять его в
-        настройки источника значило бы угадывать. Источник получает ровно
+        `data` — путь хранилища, а не источника/анализатора; подставлять
+        его в чужие настройки значило бы угадывать. Плагин получает ровно
         то, что записано в `[plugins.<name>]`.
         """
-        return dict(self.plugins.get(source, {}))
+        return dict(self.plugins.get(name, {}))
+
+    def source_options_for(self, source: str) -> dict[str, Any]:
+        """То же, что `plugin_options_for` (имя сохранено ради совместимости)."""
+        return self.plugin_options_for(source)
 
 
 __all__ = ["BUILTIN_STORE", "Config"]

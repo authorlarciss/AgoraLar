@@ -105,3 +105,30 @@ async def test_artifact_deletion_is_persisted(tmp_path: Path) -> None:
     assert await engine.delete_artifact(artifact.content_hash) == []
 
     assert await JsonStore(path).get_artifact(artifact.content_hash) is None
+
+
+async def test_binary_artifact_survives_reopen(tmp_path: Path) -> None:
+    """Регрессия: бинарные байты не обязаны быть UTF-8 (ядро 0.9.1)."""
+    from axislar_core.contracts import make_artifact
+
+    path = tmp_path / "vault.json"
+    artifact = make_artifact(bytes(range(256)), "application/octet-stream")
+    engine = JsonStore(path)
+    assert await engine.put_artifact(artifact) == []
+
+    assert await JsonStore(path).get_artifact(artifact.content_hash) == artifact
+
+
+async def test_version_one_with_artifacts_is_rejected(tmp_path: Path) -> None:
+    from agora_store_json import JsonStoreError
+
+    path = tmp_path / "vault.json"
+    payload = {
+        "version": 1,
+        "schema": {"axes": [], "scalars": []},
+        "artifacts": [{"content_hash": "a" * 64, "media_type": "image/png", "data": "not-base64"}],
+        "entities": [],
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(JsonStoreError, match="version 1 with artifacts"):
+        await JsonStore(path).count()
