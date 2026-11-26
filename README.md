@@ -136,9 +136,39 @@ docker run --rm -p 8000:8000 -e AGORALAR_TOKEN=... -v agoralar-data:/data agoral
 uid, либо запускать с `--user $(id -u):$(id -g)`. TLS, лимиты и ротация —
 за обратным прокси (ADR-0017).
 
+## Установка
+
+Пакеты пока не в PyPI: ставятся из колес релиза. Ядро — отдельный пакет,
+но теперь оно указано в зависимостях, поэтому достаточно одной команды:
+
+```bash
+# колеса: релиз AgoraLar содержит продукт и все плагины,
+# ядро берётся из релиза AxisLar
+mkdir -p wheels/axislar wheels/agoralar
+gh release download v0.10.1 -R authorlarciss/AxisLar -p '*.whl' --dir wheels/axislar
+gh release download v0.14.2 -R authorlarciss/AgoraLar -p '*.whl' --dir wheels/agoralar
+
+uv venv .venv
+uv pip install --python .venv/bin/python \
+  --find-links wheels/axislar --find-links wheels/agoralar \
+  agoralar
+.venv/bin/agoralar --help
+```
+
+Проверить, что всё на месте:
+
+```bash
+.venv/bin/agoralar plugins list        # 5 плагинов + анализатор, contract >=5,<6
+.venv/bin/agoralar schema show         # пустая схема
+```
+
+## Лицензия
+
+MIT — см. [LICENSE](LICENSE).
+
 ## Статус
 
-`0.14.1`: ядро 0.10.0 (клиенты/фичи), реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
+`0.14.2`: MIT, честные зависимости, ядро 0.10.1; реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
 HTTP с bearer-токеном и образом в `Dockerfile`, анализатор текста,
 источники `filesystem`, `sql` и `http`, CLI (`sync`, `watch`, `serve` — HTTP), конфиг `agoralar.toml`,
 история прогонов, работа на ядре 0.8.0 (провенанс, reuse по хэшу).

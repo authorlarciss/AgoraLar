@@ -4,15 +4,21 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agoralar-source-http"
-version = "0.2.0"
+version = "0.2.1"
 description = "HTTP JSON API как источник объектов для AxisLar (плагин AgoraLar)"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.13,<3.15"
-# axislar-core ставится вместе с продуктом (репозиторий ядра приватный).
-dependencies = []
+# Ядро нужно на импорте контрактов; диапазон следует контракту 5.
+dependencies = ["axislar-core>=0.10,<0.11"]
 
 [project.entry-points."agoralar.source"]
 http = "agora_source_http:plugin"
+
+[project.urls]
+Source = "https://github.com/authorlarciss/AgoraLar/tree/HEAD/plugins/source_http"
+Kernel = "https://github.com/authorlarciss/AxisLar"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.24", "mypy>=1.10", "ruff>=0.6"]

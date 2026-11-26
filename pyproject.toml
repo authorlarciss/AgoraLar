@@ -7,18 +7,21 @@ name = "agoralar"
 dynamic = ["version"]
 description = "Продуктовая оболочка ядра AxisLar: интерфейсы, реестр плагинов, готовые хранилища"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.13,<3.15"
 authors = [
     { name = "authorlarciss", email = "author.larciss@gmail.com" }
 ]
 dependencies = [
     "packaging>=24.0",
-    "agoralar-store-json",
-    "agoralar-store-sqlite",
-    "agoralar-source-filesystem",
-    "agoralar-source-sql",
-    "agoralar-source-http",
-    "agoralar-analyzer-text",
+    "axislar-core>=0.10,<0.11",
+    "agoralar-store-json>=0.5,<0.6",
+    "agoralar-store-sqlite>=0.4,<0.5",
+    "agoralar-source-filesystem>=0.3,<0.4",
+    "agoralar-source-sql>=0.2,<0.3",
+    "agoralar-source-http>=0.2,<0.3",
+    "agoralar-analyzer-text>=0.1,<0.2",
 ]
 
 [tool.uv.sources]
@@ -28,6 +31,9 @@ agoralar-source-filesystem = { path = "plugins/source_filesystem", editable = tr
 agoralar-source-sql = { path = "plugins/source_sql", editable = true }
 agoralar-source-http = { path = "plugins/source_http", editable = true }
 agoralar-analyzer-text = { path = "plugins/analyzer_text", editable = true }
+# Локальная разработка: ядро берётся из собранного колеса соседнего проекта.
+# При обновлении ядра обнови и путь, и диапазон в dependencies.
+axislar-core = { path = "../AxisLar/dist/axislar_core-0.10.1-py3-none-any.whl" }
 
 [project.optional-dependencies]
 dev = [
@@ -39,6 +45,13 @@ dev = [
     "pytest-asyncio>=0.24",
     "import-linter>=2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/authorlarciss/AgoraLar"
+Source = "https://github.com/authorlarciss/AgoraLar"
+Issues = "https://github.com/authorlarciss/AgoraLar/issues"
+Changelog = "https://github.com/authorlarciss/AgoraLar/blob/HEAD/CHANGELOG.md"
+Kernel = "https://github.com/authorlarciss/AxisLar"
 
 [project.scripts]
 agoralar = "nu.main:main"

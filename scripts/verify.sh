@@ -52,18 +52,17 @@ fi
 echo "  $CORE_WHEEL"
 
 step "Сборка продукта и плагинов"
-(cd "$ROOT" && make dist >/dev/null)
-for plugin in "$ROOT"/plugins/*/; do
-    (cd "$plugin" && uv build --out-dir dist >/dev/null)
-done
-echo "  продуктовое колесо: $(ls "$ROOT"/dist/*.whl | tail -1)"
-echo "  плагинов: $(ls "$ROOT"/plugins/*/dist/*.whl | wc -l | tr -d ' ')"
+(cd "$ROOT" && make dist-all >/dev/null)
+echo "  колёс в dist/: $(ls "$ROOT"/dist/*.whl | wc -l | tr -d ' ')"
 
-step "Чистое окружение"
+step "Чистое окружение: установка как у пользователя"
 uv venv "$VENV" >/dev/null
-uv pip install --python "$PY" --no-deps \
-    "$CORE_WHEEL" "$ROOT"/dist/*.whl "$ROOT"/plugins/*/dist/*.whl >/dev/null
-uv pip install --python "$PY" "pydantic>=2.0" "packaging>=24.0" >/dev/null
+# Без --no-deps и без ручного списка пакетов: ровно так ставит пользователь —
+# все зависимости (включая ядро) должны разрешиться из колёс рядом.
+uv pip install --python "$PY" \
+    --find-links "$ROOT/dist" \
+    --find-links "$AXISLAR_DIR/dist" \
+    agoralar >/dev/null
 "$PY" -c "import axislar_core, agora_nu.mu.public as m; print(f'  ядро {axislar_core.__version__} (contract {axislar_core.CONTRACT_VERSION}), продукт {m.__version__}')"
 
 step "Сценарий: плагины и схема"

@@ -1,4 +1,4 @@
-.PHONY: help install core install-pip lock lint lint-imports contracts contracts-check strip-template dist typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean docker-context docker-build verify verify-docker
+.PHONY: help install core install-pip lock lint lint-imports contracts contracts-check strip-template dist dist-all typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean docker-context docker-build verify verify-docker
 
 PYTHON := python3
 VENV := .venv
@@ -31,7 +31,8 @@ help:
 	@echo "  make test-e2e      — только маркер e2e"
 	@echo "  make test-module M=beta — тесты одного модуля с его покрытием"
 	@echo "  make strip-template — снести template-обвязку при форке"
-	@echo "  make dist          — собрать дистрибутив с переименованным пакетом"
+	@echo "  make dist          — собрать дистрибутив продукта (переименованный пакет)"
+	@echo "  make dist-all      — дистрибутив продукта + колеса всех плагинов в dist/"
 	@echo "  make docker-context — собрать контекст docker (wheel-ы ядра, продукта, плагинов)"
 	@echo "  make docker-build  — собрать образ продукта (docker)"
 	@echo "  make verify        — сквозная проверка из wheel: CLI + HTTP"
@@ -156,3 +157,10 @@ verify:
 
 verify-docker:
 	bash scripts/verify.sh --docker
+
+# Релизные артефакты: продукт плюс все плагины в одном dist/.
+# Иначе пользователю пришлось бы собирать плагины самому.
+dist-all: dist
+	@for plugin in plugins/*/; do (cd "$$plugin" && uv build --out-dir dist >/dev/null); done
+	@for wheel in plugins/*/dist/*.whl; do cp "$$wheel" dist/; done
+	@ls -1 dist

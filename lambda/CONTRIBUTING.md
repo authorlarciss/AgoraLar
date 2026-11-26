@@ -473,9 +473,10 @@ make install-pip   # python -m venv + pip install -e ".[dev]"
     make verify
     make verify-docker
 
-CI в GitHub устроен так: `lint` работает всегда, `test`/`dist` включаются
-секретом `AXISLAR_TOKEN` (доступ к приватному репозиторию ядра). Без него job
-честно предупреждает и пропускает шаги с ядром, а не падает на ImportError.
+CI в GitHub скачивает колесо ядра из публичного релиза `AxisLar` (версия
+берётся из `[tool.uv.sources]` в `pyproject.toml`), поэтому секретов не
+требует. Локально ядро ставится тем же `uv sync`: путь к колесу прописан в
+`pyproject.toml`, `make core` остаётся для ручной установки.
 
 ## Python 3.13
 
