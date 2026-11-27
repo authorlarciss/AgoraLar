@@ -9,6 +9,28 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-27
+
+### Added
+
+- **Локальный UI, только чтение** (ADR-0019): статика без сборки и без
+  внешних зависимостей, отдаётся тем же сервером (`GET /`, `/static/*`).
+  Список объектов с фильтрами `axis:op=…` и пагинацией, карточка с JSON и
+  связями (входящие и исходящие), таблица разреженности по осям с
+  предупреждением о пустых. Loopback, без токена: read-only.
+- **API v1** (`/api/v1`): `objects` (фильтры, `offset/limit`), `objects/{id}`
+  с `ETag`/`If-None-Match` (304), `objects/{id}/links`, `stats`,
+  `artifacts/{hash}`. Ошибки в машинно-читаемой форме
+  `{"error": {"code", "message", "axis"}}`. Старые маршруты не тронуты.
+- **Use-cases в beta**: `list_objects`, `entity_links`, `store_stats`;
+  разбор фильтров вынесен в `iota.parse_filter` — один синтаксис для CLI
+  и HTTP. HTTP-маршруты v1 стали тонкими адаптерами.
+
+### Changed
+
+- `Response` HTTP-слоя допускает заголовки (`ETag`); сервер отдаёт статику
+  и не отдаёт файлы вне каталога статики.
+
 ## [0.20.6] - 2026-11-27
 
 ### Fixed

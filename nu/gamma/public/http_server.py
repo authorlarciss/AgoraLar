@@ -55,27 +55,53 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(413, {"error": "request body too large"})
             return
 
+        if method == "GET":
+            asset = self.api.static_asset(self.path)
+            if asset is not None:
+                body_bytes, content_type = asset
+                self._send_bytes(body_bytes, content_type)
+                return
+
         body = self.rfile.read(length) if length else None
+        extra: dict[str, str] = {}
         try:
-            status, payload = asyncio.run(
-                self.api.handle(method, self.path, body, dict(self.headers))
-            )
+            result = asyncio.run(self.api.handle(method, self.path, body, dict(self.headers)))
+            status, payload = result[0], result[1]
+            if len(result) > 2:
+                extra = result[2]
         except Exception:  # pragma: no cover - защита от падения сервера
             # Наружу — ничего о внутренностях: текст исключения уходит в лог.
             _LOG.exception("unhandled error in HTTP handler")
             status, payload = 500, {"error": "internal error"}
-        self._send(status, payload)
+        self._send(status, payload, headers=extra)
 
-    def _send(self, status: int, payload: dict[str, Any], *, allow: str | None = None) -> None:
+    def _send(
+        self,
+        status: int,
+        payload: dict[str, Any],
+        *,
+        headers: dict[str, str] | None = None,
+        allow: str | None = None,
+    ) -> None:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         if allow:
             self.send_header("Allow", allow)
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(data)
+
+    def _send_bytes(self, data: bytes, content_type: str) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
 
     def log_message(self, format: str, *args: object) -> None:  # noqa: A002
         """Тишина в stderr: логи продукта идут через sigma, а не сокет-сервер."""

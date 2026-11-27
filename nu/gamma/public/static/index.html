@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgoraLar</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>AgoraLar</h1>
+  <div class="meta" id="meta">загрузка…</div>
+</header>
+
+<main>
+  <section class="panel">
+    <form id="filters" class="filters">
+      <label>
+        фильтры
+        <input id="filter-input" list="axis-list" placeholder="collection:contains=noir" autocomplete="off">
+      </label>
+      <datalist id="axis-list"></datalist>
+      <label>
+        строк
+        <select id="limit">
+          <option>25</option><option selected>50</option><option>100</option><option>200</option>
+        </select>
+      </label>
+      <button type="submit">найти</button>
+      <button type="button" id="clear">сбросить</button>
+    </form>
+    <p class="hint" id="filter-hint"></p>
+    <div class="list" id="objects">
+      <p class="muted">объектов нет — нажмите «найти»</p>
+    </div>
+    <div class="pager">
+      <button id="prev" type="button">← назад</button>
+      <span id="range" class="muted"></span>
+      <button id="next" type="button">вперёд →</button>
+    </div>
+  </section>
+
+  <section class="panel" id="card-panel">
+    <h2>карточка</h2>
+    <div id="card"><p class="muted">выберите объект в списке</p></div>
+    <div id="links"></div>
+    <details id="raw-wrap" hidden>
+      <summary>JSON объекта</summary>
+      <pre id="raw"></pre>
+    </details>
+  </section>
+</main>
+
+<section class="panel">
+  <h2>разреженность по осям</h2>
+  <p class="hint">доля объектов, у которых ось заполнена; пустая ось — либо забытый импорт, либо схема впереди данных</p>
+  <table id="stats">
+    <thead>
+      <tr><th>ось</th><th>тип</th><th class="num">заполнено</th><th>доля</th><th>распределение</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <p id="stats-warning" class="note" hidden></p>
+</section>
+
+<footer class="muted">AgoraLar · только чтение · работает локально, без сети</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>

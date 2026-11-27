@@ -63,8 +63,9 @@ where = ["."]
 include = ["nu*"]
 
 # PEP 561: типы едут в колесе, иначе mypy у пользователя видит `Any`.
+# Статика UI — package data: `agoralar serve` отдаёт её без отдельной сборки.
 [tool.setuptools.package-data]
-nu = ["py.typed"]
+nu = ["py.typed", "gamma/public/static/*"]
 
 # ---------- Mypy ----------
 [tool.mypy]

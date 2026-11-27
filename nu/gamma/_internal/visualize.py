@@ -1,171 +1,26 @@
-"""Автономный HTML-отчёт о хранилище (ROADMAP §7).
+"""HTML-отчёт о хранилище (ROADMAP §7).
 
-Задача отчёта — показать то, что словами объясняется плохо: разреженность.
-По каждой оси видно, у скольких объектов значение есть, сколько значений
-различных и как они распределены. Файл самодостаточный: ни сети, ни
-внешних ресурсов, ни JavaScript — открывается двойным кликом и
-пересылается как обычный файл.
-
-Все пользовательские строки (имена осей, значения фасетов, скаляры)
-экранируются: отчёт читают в браузере, и данные в нём не доверенные.
+Данные считает `nu.beta.public.stats.store_stats` — здесь только рендеринг.
+Файл автономный: без сети, без внешних ресурсов, без JavaScript. Все
+пользовательские строки экранируются.
 """
 
 from __future__ import annotations
 
 import json
-from collections import Counter
-from dataclasses import dataclass
 from html import escape
-from statistics import median
 from typing import Any
 
-from axislar_core.contracts import (
-    ArtifactRef,
-    AxisKind,
-    CategoricalValue,
-    Entity,
-    MeasurableValue,
-    ReferenceValue,
-    StorageSchema,
-)
+from axislar_core.contracts import AxisKind
 
-#: Сколько значений показывать в распределении оси.
-TOP_VALUES = 10
+from nu.psi.contracts.beta import AxisStats, ScalarStats, StoreStats, store_stats
+
+#: Обратная совместимость: раньше сборка и рендеринг жили в одном модуле.
+collect = store_stats
+Report = StoreStats
 
 #: Максимальная ширина полосы распределения, %.
 BAR_WIDTH = 100
-
-
-@dataclass(frozen=True, slots=True)
-class AxisStats:
-    """Сводка по одной оси."""
-
-    name: str
-    kind: str
-    multi: bool
-    filled: int
-    total: int
-    distinct: int
-    top: tuple[tuple[str, int], ...] = ()
-    minimum: float | None = None
-    middle: float | None = None
-    maximum: float | None = None
-
-    @property
-    def share(self) -> float:
-        return (self.filled / self.total * 100.0) if self.total else 0.0
-
-
-@dataclass(frozen=True, slots=True)
-class ScalarStats:
-    """Сколько объектов заполнили скаляр."""
-
-    name: str
-    filled: int
-    total: int
-
-    @property
-    def share(self) -> float:
-        return (self.filled / self.total * 100.0) if self.total else 0.0
-
-
-@dataclass(frozen=True, slots=True)
-class Report:
-    """Всё, что нужно для отчёта."""
-
-    store: str
-    total: int
-    deleted: int
-    artifacts: int
-    artifact_bytes: int
-    axes: tuple[AxisStats, ...]
-    scalars: tuple[ScalarStats, ...]
-
-    @property
-    def visible(self) -> int:
-        return self.total - self.deleted
-
-    @property
-    def empty_axes(self) -> tuple[str, ...]:
-        return tuple(axis.name for axis in self.axes if axis.filled == 0)
-
-
-def collect(
-    store: str,
-    schema: StorageSchema,
-    entities: tuple[Entity, ...],
-    artifacts: tuple[ArtifactRef, ...],
-) -> Report:
-    """Посчитать сводку по объектам и артефактам."""
-    visible = tuple(entity for entity in entities if entity.deleted_at is None)
-    total = len(entities)
-    axes = tuple(_axis_stats(axis, visible, total) for axis in schema.axes)
-    scalars = tuple(
-        ScalarStats(
-            name=scalar.name,
-            filled=sum(1 for entity in visible if entity.scalars.get(scalar.name)),
-            total=len(visible),
-        )
-        for scalar in schema.scalars
-    )
-    return Report(
-        store=store,
-        total=total,
-        deleted=total - len(visible),
-        artifacts=len(artifacts),
-        artifact_bytes=sum(reference.size for reference in artifacts),
-        axes=axes,
-        scalars=scalars,
-    )
-
-
-def _axis_stats(axis: Any, entities: tuple[Entity, ...], total: int) -> AxisStats:
-    values: list[Any] = []
-    filled = 0
-    for entity in entities:
-        present = entity.facets.get(axis.name)
-        if present:
-            filled += 1
-            values.extend(present)
-
-    kind = axis.kind.value if isinstance(axis.kind, AxisKind) else str(axis.kind)
-    if axis.kind is AxisKind.MEASURABLE:
-        numbers = [value.value for value in values if isinstance(value, MeasurableValue)]
-        stats = AxisStats(
-            name=axis.name,
-            kind=kind,
-            multi=axis.multi,
-            filled=filled,
-            total=total,
-            distinct=len(set(numbers)),
-            minimum=min(numbers) if numbers else None,
-            middle=float(median(numbers)) if numbers else None,
-            maximum=max(numbers) if numbers else None,
-        )
-        return stats
-
-    counter = _labels(values)
-    return AxisStats(
-        name=axis.name,
-        kind=kind,
-        multi=axis.multi,
-        filled=filled,
-        total=total,
-        distinct=len(counter),
-        top=tuple(counter.most_common(TOP_VALUES)),
-    )
-
-
-def _labels(values: list[Any]) -> Counter[str]:
-    counter: Counter[str] = Counter()
-    for value in values:
-        if isinstance(value, CategoricalValue):
-            counter[value.value] += 1
-        elif isinstance(value, ReferenceValue):
-            counter[str(value.target)] += 1
-        elif isinstance(value, MeasurableValue):
-            counter[repr(value.value)] += 1
-    return counter
 
 
 # ----------------------------------------------------------------- рендеринг
@@ -186,7 +41,7 @@ def render(report: Report) -> str:
         rows=rows,
         scalars=scalars,
         warnings=warnings,
-        payload=escape(json.dumps(_payload(report), ensure_ascii=False, indent=2)),
+        payload=escape(json.dumps(report.as_dict(), ensure_ascii=False, indent=2)),
     )
 
 

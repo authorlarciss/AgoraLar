@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import json
 import secrets
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs
 
 from axislar_core.contracts import (
     AxisDefinition,
@@ -21,18 +24,32 @@ from axislar_core.contracts import (
     EntityId,
     Query,
     ScalarDefinition,
+    StorageQueryError,
     make_artifact,
 )
 
+from nu.psi.contracts.beta import entity_links, list_objects, store_stats
+from nu.psi.contracts.iota import ParseError, parse_filter
 from nu.psi.contracts.mu import CONTRACT_VERSION, KERNEL_CONTRACT_VERSION, __version__
 from nu.psi.product import Product
 
-#: (status, payload) — ответ маршрута.
-Response = tuple[int, dict[str, Any]]
+#: (status, payload[, headers]) — ответ маршрута.
+Response = tuple[int, dict[str, Any]] | tuple[int, dict[str, Any], dict[str, str]]
 
 
 #: Путь, который остаётся открытым при включённом токене: пробы живости.
 OPEN_PATH = "/health"
+
+#: Каталог статики UI (лежит рядом с модулем, работает при любом имени пакета).
+STATIC_DIR = Path(__file__).parent / "static"
+
+#: Типы файлов статики; всё остальное не отдаётся.
+STATIC_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".svg": "image/svg+xml",
+}
 
 
 class HttpApi:
@@ -60,6 +77,9 @@ class HttpApi:
 
         if self.token is not None and route != OPEN_PATH and not self._authorized(headers):
             return 401, {"error": "unauthorized"}
+
+        if route == "/api/v1" or route.startswith("/api/v1/"):
+            return await self._handle_v1(method, parts[2:], path.partition("?")[2], headers)
 
         if route == "/health" and method == "GET":
             return 200, {
@@ -121,6 +141,130 @@ class HttpApi:
         if not _known(route, parts):
             return 404, {"error": "not found", "path": route}
         return 405, {"error": "method not allowed", "method": method, "path": route}
+
+    # ------------------------------------------------------ статика UI
+
+    def static_asset(self, path: str) -> tuple[bytes, str] | None:
+        """Файл интерфейса по пути; `None` — не статика.
+
+        Отдаём только известные имена из каталога статики: путь из запроса
+        не участвует в сборке имени файла, обход каталога невозможен.
+        """
+        route = path.split("?", 1)[0]
+        name = "index.html" if route in {"", "/"} else route.removeprefix("/static/")
+        if route != "/" and not route.startswith("/static/"):
+            return None
+        if not name or "/" in name or name.startswith("."):
+            return None
+        target = STATIC_DIR / name
+        if not target.is_file():
+            return None
+        content_type = STATIC_TYPES.get(target.suffix)
+        if content_type is None:
+            return None
+        return target.read_bytes(), content_type
+
+    # ------------------------------------------------------------- API v1
+
+    async def _handle_v1(
+        self,
+        method: str,
+        parts: list[str],
+        query_text: str,
+        headers: Mapping[str, str] | None,
+    ) -> Response:
+        """Версионированный API для клиентов (UI). Старые маршруты не трогаем."""
+        params = parse_qs(query_text)
+        if not parts:
+            return 200, {
+                "api": "v1",
+                "product": __version__,
+                "product_contract": CONTRACT_VERSION,
+                "kernel_contract": KERNEL_CONTRACT_VERSION,
+            }
+        head = parts[0]
+        if head == "objects" and len(parts) == 1 and method == "GET":
+            return await self._v1_objects(params)
+        if head == "objects" and len(parts) == 2 and method == "GET":
+            return await self._v1_object(parts[1], headers)
+        if head == "objects" and len(parts) == 3 and parts[2] == "links" and method == "GET":
+            return await self._v1_links(parts[1], params)
+        if head == "stats" and len(parts) == 1 and method == "GET":
+            return await self._v1_stats()
+        if head == "artifacts" and len(parts) == 2 and method == "GET":
+            return await self._get_artifact(parts[1])
+        return 404, _v1_error("not_found", f"no v1 route {'/'.join(parts)}")
+
+    async def _v1_objects(self, params: dict[str, list[str]]) -> Response:
+        try:
+            filters = tuple(parse_filter(token) for token in params.get("filter", []))
+        except ParseError as error:
+            return 400, _v1_error("invalid_filter", str(error))
+        offset = _int_param(params, "offset", 0)
+        limit = min(_int_param(params, "limit", 50), 200)
+        if offset < 0 or limit <= 0:
+            return 400, _v1_error("invalid_pagination", "offset >= 0 and 0 < limit <= 200")
+
+        schema = await self.product.core.schema()
+        for condition in filters:
+            if schema.axis(condition.axis) is None and schema.scalar(condition.axis) is None:
+                return 400, _v1_error(
+                    "unknown_axis", f"axis {condition.axis!r} is not declared", axis=condition.axis
+                )
+        try:
+            page = await list_objects(
+                self.product.core.storage,
+                Query(all=filters),
+                offset=offset,
+                limit=limit,
+                title_scalar=params.get("title", ["title"])[0],
+            )
+        except StorageQueryError as error:
+            return 422, _v1_error("invalid_query", str(error))
+        return 200, {
+            "objects": [{"id": row.id, "kind": row.kind, "title": row.title} for row in page.rows],
+            "total": page.total,
+            "offset": page.offset,
+            "limit": page.limit,
+        }
+
+    async def _v1_object(self, entity_id: str, headers: Mapping[str, str] | None) -> Response:
+        entity = await self.product.core.get(EntityId(entity_id))
+        if entity is None:
+            return 404, _v1_error("not_found", f"object {entity_id!r} not found")
+        payload = entity.model_dump_json()
+        etag = '"' + hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32] + '"'
+        presented = (headers or {}).get("If-None-Match") or (headers or {}).get("if-none-match")
+        if presented == etag:
+            return 304, {}, {"ETag": etag}
+        return 200, {"entity": json.loads(payload)}, {"ETag": etag}
+
+    async def _v1_links(self, entity_id: str, params: dict[str, list[str]]) -> Response:
+        include_deleted = params.get("include_deleted", ["0"])[0] in {"1", "true", "yes"}
+        rows = await entity_links(
+            self.product.core.storage,
+            EntityId(entity_id),
+            include_deleted=include_deleted,
+        )
+        return 200, {
+            "incoming": [
+                {"axis": row.axis, "id": row.entity_id, "title": row.title}
+                for row in rows
+                if row.direction == "in"
+            ],
+            "outgoing": [
+                {"axis": row.axis, "id": row.entity_id, "title": row.title}
+                for row in rows
+                if row.direction == "out"
+            ],
+        }
+
+    async def _v1_stats(self) -> Response:
+        schema = await self.product.core.schema()
+        entities = await self.product.core.storage.list_entities(include_deleted=True)
+        artifacts = await self.product.core.storage.list_artifacts()
+        stats = store_stats(self.product.store, schema, entities, artifacts)
+        return 200, stats.as_dict()
 
     def _authorized(self, headers: Mapping[str, str] | None) -> bool:
         """Сверить bearer-токен без утечки длины/префикса (`compare_digest`)."""
@@ -244,6 +388,21 @@ class HttpApi:
         except RuntimeError as error:  # плагины бэкендов
             return 422, {"error": str(error)}
         return 200, json.loads(result.model_dump_json())
+
+
+def _v1_error(code: str, message: str, **context: Any) -> dict[str, Any]:
+    """Единая форма ошибки v1: код машинно-читаемый, контекст — поля."""
+    error: dict[str, Any] = {"code": code, "message": message}
+    error.update({key: value for key, value in context.items() if value is not None})
+    return {"error": error}
+
+
+def _int_param(params: dict[str, list[str]], name: str, default: int) -> int:
+    raw = params.get(name, [str(default)])[0]
+    try:
+        return int(raw)
+    except ValueError:
+        return default
 
 
 def _json(body: bytes | None) -> dict[str, Any]:

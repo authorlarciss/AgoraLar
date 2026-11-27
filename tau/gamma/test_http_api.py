@@ -23,7 +23,8 @@ async def call(
     target: HttpApi, method: str, path: str, payload: dict[str, Any] | None = None
 ) -> tuple[int, dict[str, Any]]:
     body = json.dumps(payload).encode("utf-8") if payload is not None else None
-    return await target.handle(method, path, body)
+    result = await target.handle(method, path, body)
+    return result[0], result[1]
 
 
 async def test_health(tmp_path: Path) -> None:
@@ -269,7 +270,8 @@ async def call_with(
     headers: dict[str, str] | None = None,
 ) -> tuple[int, dict[str, Any]]:
     body = json.dumps(payload).encode("utf-8") if payload is not None else None
-    return await target.handle(method, path, body, headers)
+    result = await target.handle(method, path, body, headers)
+    return result[0], result[1]
 
 
 async def test_token_is_required(tmp_path: Path) -> None:

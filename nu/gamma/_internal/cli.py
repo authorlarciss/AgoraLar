@@ -27,10 +27,8 @@ from axislar_core.contracts import (
     EntityId,
     ErrorCode,
     FacetValue,
-    Filter,
     IReferenceIndex,
     MeasurableValue,
-    Operator,
     Provenance,
     Query,
     QueryResult,
@@ -64,29 +62,16 @@ from nu.psi.contracts.beta import (
 from nu.psi.contracts.iota import (
     DEFAULT_CONFIG_NAME,
     ConfigError,
+    ParseError,
     available_templates,
     find_config,
     load_config,
     load_template,
+    parse_filter,
     save_config,
 )
 from nu.psi.contracts.mu import KERNEL_CONTRACT_VERSION
 from nu.psi.product import Product, build_product
-
-#: Числовые операторы: значения разбираются как float.
-NUMERIC_OPERATORS = frozenset(
-    {
-        Operator.EQ,
-        Operator.GT,
-        Operator.LT,
-        Operator.GTE,
-        Operator.LTE,
-        Operator.BETWEEN,
-    }
-)
-
-#: Операторы без значений.
-NULLARY_OPERATORS = frozenset({Operator.EXISTS, Operator.NOT_EXISTS})
 
 
 class CliError(ValueError):
@@ -94,37 +79,6 @@ class CliError(ValueError):
 
 
 # ------------------------------------------------------------------ разбор
-
-
-def parse_filter(token: str) -> Filter:
-    """`axis:op=v1,v2` → Filter."""
-    head, separator, raw = token.partition("=")
-    axis, colon, op_name = head.partition(":")
-    if not colon or not axis or not op_name:
-        raise CliError(f"bad filter {token!r}, expected axis:op=values")
-
-    try:
-        op = Operator(op_name)
-    except ValueError as error:
-        known = ", ".join(item.value for item in Operator)
-        raise CliError(f"unknown operator {op_name!r}; known: {known}") from error
-
-    if op in NULLARY_OPERATORS:
-        return Filter(axis=axis, op=op)
-    if not separator:
-        raise CliError(f"filter {token!r} requires values")
-
-    raw_values = [piece for piece in raw.split(",") if piece]
-    if not raw_values:
-        raise CliError(f"filter {token!r} requires at least one value")
-
-    if op in NUMERIC_OPERATORS:
-        try:
-            numeric: tuple[str | float, ...] = tuple(float(piece) for piece in raw_values)
-        except ValueError as error:
-            raise CliError(f"operator {op.value!r} requires numbers") from error
-        return Filter(axis=axis, op=op, values=numeric)
-    return Filter(axis=axis, op=op, values=tuple(raw_values))
 
 
 def parse_scalar(token: str) -> tuple[str, str]:
@@ -1041,7 +995,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
         return asyncio.run(run(args))
-    except (CliError, ConfigError, ExportError, UnknownPluginError) as error:
+    except (CliError, ConfigError, ExportError, ParseError, UnknownPluginError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     except StorageQueryError as error:  # движок отказал: запрос не прошёл валидацию

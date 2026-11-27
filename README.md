@@ -192,7 +192,7 @@ uv pip install agoralar
 # ядро берётся из релиза AxisLar
 mkdir -p wheels/axislar wheels/agoralar
 gh release download v0.12.1 -R authorlarciss/AxisLar -p '*.whl' --dir wheels/axislar
-gh release download v0.20.6 -R authorlarciss/AgoraLar -p '*.whl' --dir wheels/agoralar
+gh release download v0.21.0 -R authorlarciss/AgoraLar -p '*.whl' --dir wheels/agoralar
 
 uv venv .venv
 uv pip install --python .venv/bin/python \
@@ -220,6 +220,21 @@ Web UI, cookbook) и их технические ограничения — `lam
 завершить публикацию в PyPI (лимит аккаунта), образ в `ghcr.io`,
 бенчмарки, гайд по плагинам, пользовательская документация,
 `export`/`import`, потребитель профилей клиентов.
+
+## Интерфейс
+
+`agoralar serve` поднимает локальный сервер и отдаёт UI на том же origin,
+что и API:
+
+```bash
+agoralar serve            # http://127.0.0.1:8000 — открыть в браузере
+```
+
+Что есть в первой версии: список объектов с фильтрами `axis:op=значения`
+и пагинацией, карточка объекта с JSON и связями (входящие и исходящие),
+таблица разреженности по осям с предупреждением о пустых. Только чтение,
+только loopback, без токена и без сборки — статика отдаётся из пакета.
+Редактирование появится после ревизий и отката (фазы 2–3 плана).
 
 ## Скорость
 
@@ -261,7 +276,7 @@ MIT — см. [LICENSE](LICENSE).
 
 ## Статус
 
-`0.20.6`: MIT, публикация по OIDC с PEP 740-аттестацией (`/integrity/<проект>/...)`, честные зависимости, ядро 0.12.0 (обратные ссылки — `references_to` в сторах); реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
+`0.21.0`: MIT, публикация по OIDC с PEP 740-аттестацией (`/integrity/<проект>/...)`, честные зависимости, ядро 0.12.0 (обратные ссылки — `references_to` в сторах); реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
 HTTP с bearer-токеном и образом в `Dockerfile`, анализатор текста,
 источники `markdown`, `filesystem`, `sql` и `http`, CLI (`sync`, `watch`, `serve` — HTTP), конфиг `agoralar.toml`,
 история прогонов, провенанс и reuse производных фактов по `content_hash`,
