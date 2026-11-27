@@ -67,6 +67,10 @@ version = { attr = "nu.mu.public.__version__" }
 where = ["."]
 include = ["nu*"]
 
+# PEP 561: типы едут в колесе, иначе mypy у пользователя видит `Any`.
+[tool.setuptools.package-data]
+nu = ["py.typed"]
+
 # ---------- Mypy ----------
 [tool.mypy]
 python_version = "3.13"

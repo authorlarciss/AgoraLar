@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
@@ -11,6 +12,11 @@ from nu.gamma.public.http_api import HttpApi
 
 #: Размер тела запроса, который сервер готов принять.
 MAX_BODY = 8 * 1024 * 1024
+
+#: Методы, которые обслуживает `HttpApi`.
+ALLOWED_METHODS = "GET, POST, PUT, DELETE"
+
+_LOG = logging.getLogger("agoralar.http")
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -30,6 +36,19 @@ class _Handler(BaseHTTPRequestHandler):
     def do_DELETE(self) -> None:  # noqa: N802
         self._dispatch("DELETE")
 
+    def do_HEAD(self) -> None:  # noqa: N802
+        self._not_allowed("HEAD")
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        self._not_allowed("OPTIONS")
+
+    def do_PATCH(self) -> None:  # noqa: N802
+        self._not_allowed("PATCH")
+
+    def _not_allowed(self, method: str) -> None:
+        """Явный 405 вместо 501 из stdlib: неизвестный метод — не «не реализовано»."""
+        self._send(405, {"error": f"method {method} not allowed"}, allow=ALLOWED_METHODS)
+
     def _dispatch(self, method: str) -> None:
         length = int(self.headers.get("Content-Length") or 0)
         if length > MAX_BODY:
@@ -41,17 +60,22 @@ class _Handler(BaseHTTPRequestHandler):
             status, payload = asyncio.run(
                 self.api.handle(method, self.path, body, dict(self.headers))
             )
-        except Exception as error:  # pragma: no cover - защита от падения сервера
-            status, payload = 500, {"error": f"internal error: {error}"}
+        except Exception:  # pragma: no cover - защита от падения сервера
+            # Наружу — ничего о внутренностях: текст исключения уходит в лог.
+            _LOG.exception("unhandled error in HTTP handler")
+            status, payload = 500, {"error": "internal error"}
         self._send(status, payload)
 
-    def _send(self, status: int, payload: dict[str, Any]) -> None:
+    def _send(self, status: int, payload: dict[str, Any], *, allow: str | None = None) -> None:
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
+        if allow:
+            self.send_header("Allow", allow)
         self.end_headers()
-        self.wfile.write(data)
+        if self.command != "HEAD":
+            self.wfile.write(data)
 
     def log_message(self, format: str, *args: object) -> None:  # noqa: A002
         """Тишина в stderr: логи продукта идут через sigma, а не сокет-сервер."""
@@ -76,4 +100,4 @@ def serve(api: HttpApi, host: str = "127.0.0.1", port: int = 8000) -> None:
         server.server_close()
 
 
-__all__ = ["MAX_BODY", "make_server", "serve"]
+__all__ = ["ALLOWED_METHODS", "MAX_BODY", "make_server", "serve"]

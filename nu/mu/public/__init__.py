@@ -2,7 +2,7 @@
 
 from axislar_core.contracts import CONTRACT_VERSION as KERNEL_CONTRACT_VERSION
 
-__version__ = "0.20.0"
+__version__ = "0.20.1"
 
 #: Версия публичного контракта продукта (DTO, реестр, интерфейсы).
 CONTRACT_VERSION = "1"

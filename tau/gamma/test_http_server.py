@@ -115,3 +115,45 @@ def test_auth_over_real_socket(tmp_path: Path) -> None:
         httpd.shutdown()
         httpd.server_close()
         thread.join(timeout=5)
+
+
+def test_unsupported_method_is_405_with_allow(server: tuple[int, threading.Thread]) -> None:
+    port, _ = server
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    connection.request("PATCH", "/health", body=b"{}", headers={"Content-Type": "application/json"})
+    response = connection.getresponse()
+    payload = json.loads(response.read().decode("utf-8"))
+    assert response.status == 405
+    assert response.getheader("Allow") == "GET, POST, PUT, DELETE"
+    assert "not allowed" in payload["error"]
+
+
+def test_internal_error_does_not_leak_details(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """500 наружу без текста исключения: детали уходят в лог."""
+    from nu.gamma.public import http_server
+
+    product = build_product(config=Config(store="json", data=tmp_path / "v2.json"))
+    api = HttpResolver().make_http_api(product)
+
+    async def boom(*args: object, **kwargs: object) -> tuple[int, dict[str, object]]:
+        raise RuntimeError("секретный путь /home/kai/token")
+
+    monkeypatch.setattr(api, "handle", boom)
+    httpd = http_server.make_server(api, "127.0.0.1", 0)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = httpd.server_address[1]
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        connection.request("GET", "/health")
+        response = connection.getresponse()
+        payload = json.loads(response.read().decode("utf-8"))
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=5)
+
+    assert response.status == 500
+    assert payload == {"error": "internal error"}

@@ -27,6 +27,10 @@ dev = ["pytest>=8", "pytest-asyncio>=0.24", "mypy>=1.10", "ruff>=0.6"]
 where = ["."]
 include = ["agora_store_json*"]
 
+# PEP 561: типы едут в колесе.
+[tool.setuptools.package-data]
+agora_store_json = ["py.typed"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

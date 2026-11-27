@@ -9,6 +9,24 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-11-27
+
+### Added
+
+- **PEP 561**: `py.typed` в продукте и во всех плагинах + секции
+  `[tool.setuptools.package-data]`. Раньше mypy у пользователя видел
+  `Any` у всего, что импортировано из `agoralar` и плагинов.
+
+### Changed
+
+- **HTTP**: `500` больше не отдаёт текст исключения наружу (детали уходят
+  в лог); неподдерживаемые методы (`PATCH`, `OPTIONS`, `HEAD`) отвечают
+  `405` с заголовком `Allow` вместо `501` из stdlib.
+- **CI**: job `publish` получает право `attestations: write`, чтобы PyPI
+  принимал PEP 740-аттестации (SLSA build provenance).
+- README: установка описана как `uv pip install agoralar` (пакеты в PyPI),
+  офлайн-вариант из колес релиза оставлен ниже.
+
 ## [0.20.0] - 2026-11-27
 
 ### Added
