@@ -1,9 +1,8 @@
 name: CI
 
-# Ядро (axislar-core) — публичный репозиторий AxisLar, но в PyPI его пока нет.
-# CI скачивает колесо из релиза AxisLar по версии, объявленной в
-# [tool.uv.sources] продукта: единственный источник истины — pyproject.
-# Когда ядро появится в PyPI, шаг «Скачать колесо ядра» удаляется.
+# Ядро (axislar-core) ставится из PyPI как обычная зависимость: диапазон
+# объявлен в pyproject.toml, временных обходов (локальное колесо из релиза
+# AxisLar, --no-install-package) больше нет.
 
 on:
   push:
@@ -50,27 +49,24 @@ jobs:
       - name: Set up Python 3.13
         run: uv python install 3.13
 
-      # Колесо кладётся ровно туда, куда указывает [tool.uv.sources].
-      - name: Скачать колесо ядра
-        run: |
-          version=$(sed -n 's#.*axislar_core-\([0-9][0-9.]*\)-py3-none-any\.whl.*#\1#p' pyproject.toml | head -1)
-          test -n "$version" || { echo "не нашёл версию ядра в pyproject.toml" >&2; exit 1; }
-          mkdir -p ../AxisLar/dist
-          url="https://github.com/authorlarciss/AxisLar/releases/download/v${version}/axislar_core-${version}-py3-none-any.whl"
-          echo "ядро $version: $url"
-          curl -fsSL -o "../AxisLar/dist/axislar_core-${version}-py3-none-any.whl" "$url"
-
-      # Колесо ядра — файл из релиза, а в uv.lock записан хеш локальной
-      # сборки; они не совпадают, если ядро пересобирали. Поэтому ядро
-      # ставится отдельно, а не через lock.
       - name: Install dependencies
-        run: uv sync --extra dev --no-install-package axislar-core
-
-      - name: Установить колесо ядра
-        run: uv pip install --python .venv/bin/python ../AxisLar/dist/axislar_core-*.whl
+        run: uv sync --extra dev
 
       - name: Check
         run: make check
+
+      # Отчёт покрытия — артефактом, без внешних сервисов: числа проверяемые,
+      # а не бейдж, который врёт при первом расхождении.
+      - name: Coverage HTML
+        if: always()
+        run: .venv/bin/coverage html -d .coverage-html || true
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: .coverage-html
 
   dist:
     name: dist (теги)
@@ -78,6 +74,11 @@ jobs:
     needs: check
     permissions:
       contents: write
+      # GitHub-native build provenance: `gh attestation verify dist/*.whl`
+      # подтверждает, что артефакт собран этим workflow. Это не PyPI-аттестация
+      # (та — publish, PEP 740) и не «SLSA L3».
+      id-token: write
+      attestations: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -90,22 +91,16 @@ jobs:
       - name: Set up Python 3.13
         run: uv python install 3.13
 
-      - name: Скачать колесо ядра
-        run: |
-          version=$(sed -n 's#.*axislar_core-\([0-9][0-9.]*\)-py3-none-any\.whl.*#\1#p' pyproject.toml | head -1)
-          test -n "$version" || { echo "не нашёл версию ядра в pyproject.toml" >&2; exit 1; }
-          mkdir -p ../AxisLar/dist
-          url="https://github.com/authorlarciss/AxisLar/releases/download/v${version}/axislar_core-${version}-py3-none-any.whl"
-          curl -fsSL -o "../AxisLar/dist/axislar_core-${version}-py3-none-any.whl" "$url"
-
       - name: Install dependencies
-        run: uv sync --extra dev --no-install-package axislar-core
-
-      - name: Установить колесо ядра
-        run: uv pip install --python .venv/bin/python ../AxisLar/dist/axislar_core-*.whl
+        run: uv sync --extra dev
 
       - name: Build distribution (продукт + плагины)
         run: make dist-all
+
+      - name: Attest build provenance (GitHub)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

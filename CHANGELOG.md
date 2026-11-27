@@ -9,6 +9,22 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.20.5] - 2026-11-27
+
+### Changed
+
+- **Ядро ставится из PyPI**: убраны `[tool.uv.sources]` для `axislar-core`,
+  шаг «скачать колесо из GitHub Release» в CI и цель `make core`. Временных
+  обходов публикации больше нет — `uv sync` и CI используют индекс.
+- **GitHub build provenance**: job `dist` аттестует артефакты
+  (`actions/attest-build-provenance`), проверка —
+  `gh attestation verify dist/*.whl --repo authorlarciss/AgoraLar`.
+  Это дополнение к PEP 740 publish-аттестации, а не замена; «SLSA L3» не
+  заявляем.
+- **Покрытие публично**: CI кладёт HTML-отчёт артефактом `coverage-html`,
+  в README появился раздел «Качество» с числами.
+- `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1) и ссылка из CONTRIBUTING.
+
 ### Added
 
 - **PEP 740 publish attestation** работает: PyPI подтверждает, что файл

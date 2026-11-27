@@ -115,8 +115,7 @@ agoralar query --filter tags:contains=noir
 Разработка:
 
 ```bash
-make install            # venv + dev-зависимости
-make core               # ядро из локального wheel ../AxisLar/dist
+make install            # venv + dev-зависимости (ядро — из PyPI)
 make check              # линт, контракты, типы, тесты
 make bench              # бенчмарк стора (BACKEND=sqlite|json, N=объектов)
 ```
@@ -193,7 +192,7 @@ uv pip install agoralar
 # ядро берётся из релиза AxisLar
 mkdir -p wheels/axislar wheels/agoralar
 gh release download v0.12.1 -R authorlarciss/AxisLar -p '*.whl' --dir wheels/axislar
-gh release download v0.20.4 -R authorlarciss/AgoraLar -p '*.whl' --dir wheels/agoralar
+gh release download v0.20.5 -R authorlarciss/AgoraLar -p '*.whl' --dir wheels/agoralar
 
 uv venv .venv
 uv pip install --python .venv/bin/python \
@@ -246,13 +245,23 @@ Web UI, cookbook) и их технические ограничения — `lam
 бэкенд для переносимости и диффов, и его чтение по-прежнему поднимает весь
 файл в память.
 
+## Качество
+
+`make check` — один гейт: ruff, mypy strict, шесть импорт-контрактов,
+контрактные наборы ядра, тесты. На 2026-11-27: **376 тестов**, покрытие
+**94%**, шесть контрактов.
+
+Покрытие видно без внешних сервисов: CI кладёт HTML-отчёт артефактом
+`coverage-html` в каждый прогон (вкладка Actions → нужный run → Artifacts).
+Бейджа Codecov сознательно нет: он показывает не наши числа, а свои.
+
 ## Лицензия
 
 MIT — см. [LICENSE](LICENSE).
 
 ## Статус
 
-`0.20.4`: MIT, публикация по OIDC с PEP 740-аттестацией (`/integrity/<проект>/...)`, честные зависимости, ядро 0.12.0 (обратные ссылки — `references_to` в сторах); реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
+`0.20.5`: MIT, публикация по OIDC с PEP 740-аттестацией (`/integrity/<проект>/...)`, честные зависимости, ядро 0.12.0 (обратные ссылки — `references_to` в сторах); реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
 HTTP с bearer-токеном и образом в `Dockerfile`, анализатор текста,
 источники `markdown`, `filesystem`, `sql` и `http`, CLI (`sync`, `watch`, `serve` — HTTP), конфиг `agoralar.toml`,
 история прогонов, провенанс и reuse производных фактов по `content_hash`,

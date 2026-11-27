@@ -5,7 +5,7 @@
 
 ## 0. Статус (2026-11-27)
 
-**Текущая версия — 0.20.4** на ядре `axislar-core` 0.12.1 (contract 5).
+**Текущая версия — 0.20.5** на ядре `axislar-core` 0.12.1 (contract 5).
 Выполнено: P0–P5 и сверх плана — HTTP, история прогонов, периодический
 `watch`, провенанс и reuse производных фактов. Плагины: `json` (0.5.4),
 `sqlite` (0.4.4), `filesystem` (0.3.4), `sql` (0.2.4), `http` (0.2.4),
@@ -72,14 +72,14 @@ CLI `artifact put/get/ls/rm`, HTTP `/artifacts`, бэкенды `json`/`sqlite`
 3. **Каждая фаза заканчивается измеримым критерием** и выпуском. Фаза, которую
    нельзя проверить на своём архиве, не считается сделанной.
 
-### Фаза 0. Хвосты перед UI (0.5–1 день)
+### Фаза 0. Хвосты перед UI (0.5–1 день) — **выполнено**
 
 | # | Что | Критерий |
 |---|---|---|
-| 0.1 | Убрать временные обходы публикации: `[tool.uv.sources]` для ядра, шаг «скачать колесо из GitHub Release» в CI, `make core` | CI ставит `axislar-core` из PyPI, локальная сборка не нужна |
-| 0.2 | SLSA build provenance: `astral-sh/attest-action` в job `dist` | Integrity API отдаёт два `predicateType`, включая `slsa.dev/provenance/v1` |
-| 0.3 | Coverage как артефакт CI + раздел «Качество» в README (числа, не бейдж) | ссылка на артефакт из README, числа совпадают с `make check` |
-| 0.4 | `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1) + ссылка из CONTRIBUTING | файл в корне виден на GitHub |
+| 0.1 | ✅ Убраны обходы: `[tool.uv.sources]` для ядра, шаг «скачать колесо из GitHub Release», `make core` | CI ставит `axislar-core` из PyPI |
+| 0.2 | ✅ Provenance: PEP 740 publish-аттестация в PyPI (`pypi_attestations sign`) + GitHub build provenance (`actions/attest-build-provenance`). SLSA L3 не заявляем: `attest-action` даёт publish-аттестацию, а не build provenance; честная формулировка — в `PUBLISHING.md` §4a | `gh attestation verify dist/*.whl` проходит; Integrity API отдаёт `publish/v1` |
+| 0.3 | ✅ Coverage артефактом `coverage-html` + раздел «Качество» в README | числа в README совпадают с `make check` |
+| 0.4 | ✅ `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1) + ссылка из CONTRIBUTING | файл в корне виден на GitHub |
 
 ### Фаза 1. UI как первый клиент: только чтение (2–3 недели)
 
@@ -172,5 +172,5 @@ CLI `artifact put/get/ls/rm`, HTTP `/artifacts`, бэкенды `json`/`sqlite`
 |------|---------|------------|
 | Продукт начнёт «дописывать» модель | валидация в CLI/HTTP/бэкендах | проверки только через `axislar_core.contracts` |
 | Реестр превратится в платформу | манифесты, песочница, версии API | только `requires_contract` и entry points |
-| Приватное ядро блокирует установку | нет PyPI | до публикации — wheel из `AxisLar/dist` (`make core`) |
+| Ядро не установится из индекса | `uv sync` без сети | ядро в PyPI с 0.10.1; офлайн-путь — колеса из релиза |
 | Рассинхрон версий контракта | плагины отклоняются | контракт поднимается явно, плагины и продукт обновляются в одном проходе |

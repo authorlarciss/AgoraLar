@@ -1,4 +1,4 @@
-.PHONY: help demo bench install core install-pip lock lint lint-imports contracts contracts-check strip-template dist dist-all typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean docker-context docker-build verify verify-docker verify-index publish-check publish-test publish
+.PHONY: help demo bench install install-pip lock lint lint-imports contracts contracts-check strip-template dist dist-all typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean docker-context docker-build verify verify-docker verify-index publish-check publish-test publish
 
 # Воспроизводимые сборки: одинаковый исходник даёт одинаковый хеш колеса.
 # Иначе повторный `uv publish` той же версии упирается в «local file and
@@ -19,7 +19,6 @@ PY := $(VENV)/bin/python
 help:
 	@echo "Доступные команды:"
 	@echo "  make install       — установить зависимости через uv sync (рекомендуется)"
-	@echo "  make core          — поставить ядро AxisLar из локального wheel"
 	@echo "  make install-pip   — установить зависимости через venv+pip (fallback)"
 	@echo "  make lock          — обновить uv.lock после изменения зависимостей"
 	@echo "  make lint          — ruff check"
@@ -53,13 +52,9 @@ help:
 	@echo "  make run           — запуск nu.main"
 	@echo "  make clean         — удалить кэши и venv"
 
-# Ядро (axislar-core) не в pyproject: репозиторий ядра пока приватный, а
+# Ядро ставится из PyPI как обычная зависимость (`uv sync`).
 # uv sync вычищает пакеты, поставленные вручную. Поэтому отдельный таргет.
-CORE_WHEEL ?= $(lastword $(sort $(wildcard ../AxisLar/dist/axislar_core-*.whl)))
 
-core:
-	@test -n "$(CORE_WHEEL)" || (echo "no wheel in ../AxisLar/dist; run 'make dist' in AxisLar" >&2; exit 1)
-	uv pip install "$(CORE_WHEEL)"
 
 install:
 	@command -v uv >/dev/null 2>&1 || (echo "uv not found. Install it or use 'make install-pip'."; exit 1)
@@ -152,7 +147,8 @@ clean:
 	rm -rf .coverage htmlcov .mypy_cache
 
 # Образ не тащит исходники: в контекст кладутся только wheel артефактов.
-# Порядок важен — сначала `make dist` в ../AxisLar (ядро), потом здесь.
+# Это локальный путь разработки (воспроизводимая сборка без сети);
+# пользовательская установка — `pip install agoralar` из PyPI.
 DOCKER_IMAGE ?= agoralar
 
 docker-context:

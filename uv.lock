@@ -37,7 +37,7 @@ requires-dist = [
     { name = "agoralar-source-sql", editable = "plugins/source_sql" },
     { name = "agoralar-store-json", editable = "plugins/store_json" },
     { name = "agoralar-store-sqlite", editable = "plugins/store_sqlite" },
-    { name = "axislar-core", path = "../AxisLar/dist/axislar_core-0.12.1-py3-none-any.whl" },
+    { name = "axislar-core", specifier = ">=0.12,<0.13" },
     { name = "import-linter", marker = "extra == 'dev'", specifier = ">=2.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "packaging", specifier = ">=24.0" },
@@ -246,26 +246,14 @@ wheels = [
 [[package]]
 name = "axislar-core"
 version = "0.12.1"
-source = { path = "../AxisLar/dist/axislar_core-0.12.1-py3-none-any.whl" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/73/4a/f8b256f5ca262dea3aa3e40ab517401a30ec4ba36ec2776c59cf158a4e12/axislar_core-0.12.1.tar.gz", hash = "sha256:2ddc90b0e5dc4661fdf0b1d45cdc2fcc68339191310177d1423de6376614514f", size = 51144, upload-time = "2026-11-27T12:36:02.442Z" }
 wheels = [
-    { filename = "axislar_core-0.12.1-py3-none-any.whl", hash = "sha256:53afe9a5ac6acefba81f35709b1b743f3fa89a737e6ec920543d07ad12a57a52" },
+    { url = "https://files.pythonhosted.org/packages/13/83/fdf82b67f69890e1432ed5c2c659bd1a83317d856bedbb206ab78b460523/axislar_core-0.12.1-py3-none-any.whl", hash = "sha256:53afe9a5ac6acefba81f35709b1b743f3fa89a737e6ec920543d07ad12a57a52", size = 67242, upload-time = "2026-11-27T12:36:01.248Z" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "import-linter", marker = "extra == 'dev'", specifier = ">=2.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.6" },
-    { name = "pydantic", specifier = ">=2.14.4" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "cfgv"

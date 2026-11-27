@@ -188,12 +188,23 @@ curl -fsS -H 'Accept: application/vnd.pypi.integrity.v1+json' \
 Ответ содержит `publisher` (GitHub, репозиторий, workflow, environment) и
 `predicateType`.
 
-Что это даёт и чего не даёт: сейчас это **publish-аттестация**
+Что это даёт и чего не даёт: это **publish-аттестация**
 (`https://docs.pypi.org/attestations/publish/v1`) — PyPI подтверждает, что
-файл загружен именно этим workflow из этого репозитория. Это не SLSA build
-provenance (`https://slsa.dev/provenance/v1`) и не «SLSA L3»: L3 требует
-изолированного билдера. Для build provenance нужен отдельный шаг
-(`astral-sh/attest-action`), который аттестует сборку, а не загрузку.
+файл загружен именно этим workflow из этого репозитория. Это не SLSA L3 и
+не «build provenance» в смысле SLSA: `astral-sh/attest-action` делает ровно
+то же самое (publish-аттестацию), а не аттестацию сборки.
+
+Отдельно job `dist` кладёт **GitHub build provenance** для тех же файлов
+(`actions/attest-build-provenance`). Проверка — не через PyPI, а через
+GitHub:
+
+```bash
+gh attestation verify dist/agoralar-*.whl --repo authorlarciss/AgoraLar
+```
+
+Итог: два независимых подтверждения — «этот файл загружен на PyPI нашим
+workflow» и «этот файл собран нашим workflow». Заявлять «SLSA L3» было бы
+неправдой: для L3 нужен изолированный билдер с неподделываемыми логами.
 
 ## 5. Ограничения и подводные камни
 

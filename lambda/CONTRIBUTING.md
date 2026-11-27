@@ -1,5 +1,7 @@
 # Правила разработки
 
+Участие в проекте регулируется [кодексом поведения](../CODE_OF_CONDUCT.md).
+
 ## Ветки
 
 См. `VERSIONING.md`.
@@ -476,7 +478,7 @@ make install-pip   # python -m venv + pip install -e ".[dev]"
 CI в GitHub скачивает колесо ядра из публичного релиза `AxisLar` (версия
 берётся из `[tool.uv.sources]` в `pyproject.toml`), поэтому секретов не
 требует. Локально ядро ставится тем же `uv sync`: путь к колесу прописан в
-`pyproject.toml`, `make core` остаётся для ручной установки.
+`pyproject.toml`; ядро ставится из PyPI как обычная зависимость (`uv sync`).
 
 ## Python 3.13
 
