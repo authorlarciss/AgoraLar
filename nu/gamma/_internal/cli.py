@@ -25,8 +25,10 @@ from axislar_core.contracts import (
     DomainError,
     Entity,
     EntityId,
+    ErrorCode,
     FacetValue,
     Filter,
+    IReferenceIndex,
     MeasurableValue,
     Operator,
     Provenance,
@@ -56,8 +58,10 @@ from nu.psi.contracts.beta import (
 from nu.psi.contracts.iota import (
     DEFAULT_CONFIG_NAME,
     ConfigError,
+    available_templates,
     find_config,
     load_config,
+    load_template,
     save_config,
 )
 from nu.psi.contracts.mu import KERNEL_CONTRACT_VERSION
@@ -590,7 +594,73 @@ def use_store(args: argparse.Namespace, config: Config) -> int:
     return 0
 
 
+async def run_init(args: argparse.Namespace) -> int:
+    """Создать конфиг и схему из шаблона (ROADMAP §1).
+
+    Шаблон не создаёт объектов: только `agoralar.toml` и оси/скаляры в
+    хранилище. Оси неизменяемы (DOMAIN A4), поэтому повторный запуск умеет
+    только добавлять недостающие — существующие пропускаются с сообщением.
+    """
+    if args.list_templates:
+        for template in available_templates():
+            print(template.describe())
+        return 0
+    if not args.template:
+        print("error: нужен --template (список: agoralar init --list)", file=sys.stderr)
+        return 2
+
+    template = load_template(args.template)
+    target = args.config or Path.cwd() / DEFAULT_CONFIG_NAME
+    if target.exists() and not args.force:
+        print(
+            f"error: {target} уже существует; --force добавит недостающие оси",
+            file=sys.stderr,
+        )
+        return 2
+    if not target.exists():
+        save_config(
+            Config(store=template.store, plugins=dict(template.plugins)),
+            target,
+        )
+        print(f"config {target} created from template {template.name}")
+
+    config = load_config(target)
+    product = build_product(config=config)
+    added: list[str] = []
+    skipped: list[str] = []
+    problems: list[DomainError] = []
+
+    for axis in template.axes:
+        errors = await product.core.add_axis(axis)
+        if not errors:
+            added.append(f"axis {axis.name}")
+        elif all(error.code is ErrorCode.DUPLICATE_AXIS for error in errors):
+            skipped.append(f"axis {axis.name}")
+        else:
+            problems.extend(errors)
+
+    for scalar in template.scalars:
+        errors = await product.core.add_scalar(scalar)
+        if not errors:
+            added.append(f"scalar {scalar.name}")
+        elif all(error.code is ErrorCode.DUPLICATE_SCALAR for error in errors):
+            skipped.append(f"scalar {scalar.name}")
+        else:
+            problems.extend(errors)
+
+    print(f"template {template.name}: added {len(added)}, skipped {len(skipped)}")
+    if skipped:
+        print("  уже было (оси неизменяемы): " + ", ".join(skipped))
+    if problems:
+        print_errors(problems)
+        return 2
+    return 0
+
+
 async def run(args: argparse.Namespace) -> int:
+    if args.command == "init":
+        return await run_init(args)
+
     config = resolve_config(args)
     store = args.store or config.store
     options = {"path": str(args.data)} if args.data is not None else {}
@@ -653,6 +723,34 @@ async def run(args: argparse.Namespace) -> int:
         print(render_result(await product.core.query(build_query(args)), args.json))
         return 0
 
+    if args.command == "links":
+        storage = product.core.storage
+        if not isinstance(storage, IReferenceIndex):
+            print(
+                f"error: хранилище {product.store!r} не умеет обход ссылок "
+                "(нет Capability.TRAVERSE_REFERENCES)",
+                file=sys.stderr,
+            )
+            return 2
+        incoming = await storage.references_to(
+            EntityId(args.id),
+            args.axis or None,
+            include_deleted=args.include_deleted,
+        )
+        if args.json:
+            print(
+                json.dumps(
+                    [link.model_dump() for link in incoming],
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        else:
+            print(f"# total={len(incoming)}")
+            for link in incoming:
+                print(f"{link.axis} <- {link.entity_id}")
+        return 0
+
     if args.command == "store-use":
         return use_store(args, config)
 
@@ -712,6 +810,25 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--data", type=Path, help="файл данных для файловых бэкендов")
     parser.add_argument("--config", type=Path, help="путь к agoralar.toml")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    init = subparsers.add_parser("init", help="создать конфиг и схему из шаблона")
+    init.add_argument("--template", help="имя шаблона (список: --list)")
+    init.add_argument("--list", dest="list_templates", action="store_true", help="показать шаблоны")
+    init.add_argument(
+        "--force",
+        action="store_true",
+        help="конфиг уже есть: добавить недостающие оси вместо отказа",
+    )
+    init.set_defaults(command="init")
+
+    links = subparsers.add_parser("links", help="кто ссылается на объект")
+    links.add_argument("--id", required=True, help="id объекта")
+    links.add_argument("--axis", action="append", default=[], help="ограничить осью")
+    links.add_argument(
+        "--include-deleted", dest="include_deleted", action="store_true", help="включая tombstone"
+    )
+    links.add_argument("--json", action="store_true")
+    links.set_defaults(command="links")
 
     schema = subparsers.add_parser("schema", help="работа со схемой")
     schema_sub = schema.add_subparsers(dest="schema_command", required=True)

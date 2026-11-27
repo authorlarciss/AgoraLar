@@ -97,6 +97,9 @@ def _render_value(value: object) -> str:
         return str(value)
     if isinstance(value, str):
         return f'"{value}"'
+    if isinstance(value, list | tuple):
+        # Массивы нужны параметрам плагинов: `levels`, `suffixes`.
+        return "[" + ", ".join(_render_value(item) for item in value) + "]"
     raise ConfigError(f"cannot render config value of type {type(value).__name__}")
 
 

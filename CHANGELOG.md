@@ -9,6 +9,23 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-27
+
+### Added
+
+- **`agoralar init --template <имя>`** (ROADMAP §1): встроенные шаблоны
+  `video-archive` и `obsidian-vault` создают `agoralar.toml` (store, секции
+  `[plugins.*]`) и оси/скаляры в хранилище. Шаблон не создаёт объектов.
+  Повторный запуск без `--force` отказывает, с `--force` добавляет только
+  недостающее: оси неизменяемы (DOMAIN A4). `agoralar init --list`.
+- **`agoralar links --id ... [--axis] [--include-deleted] [--json]`**:
+  обратные ссылки через порт `IReferenceIndex`.
+- **Демо-стенд** `examples/demo` + `make demo` и e2e-тест: шаблон →
+  `sync --apply` → запрос → карточка → `links`. Дерево файлов источника
+  не меняется, внешние сервисы не нужны.
+- `render_config` пишет массивы (`levels`, `suffixes`) — параметры
+  плагинов-источников в конфиге больше не нужно кодировать строкой.
+
 ## [0.16.0] - 2026-11-27
 
 ### Changed

@@ -90,7 +90,12 @@ def test_render_and_roundtrip() -> None:
 
 def test_render_rejects_unknown_value() -> None:
     with pytest.raises(ConfigError, match="cannot render"):
-        render_config(Config(plugins={"json": {"bad": [1, 2]}}))
+        render_config(Config(plugins={"json": {"bad": {"nested": "table"}}}))
+
+
+def test_render_supports_arrays() -> None:
+    rendered = render_config(Config(plugins={"filesystem": {"levels": ["a", "b"]}}))
+    assert 'levels = ["a", "b"]' in rendered
 
 
 def test_save_is_atomic_and_idempotent(tmp_path: Path) -> None:

@@ -1,4 +1,4 @@
-.PHONY: help bench install core install-pip lock lint lint-imports contracts contracts-check strip-template dist dist-all typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean docker-context docker-build verify verify-docker verify-index publish-check publish-test publish
+.PHONY: help demo bench install core install-pip lock lint lint-imports contracts contracts-check strip-template dist dist-all typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean docker-context docker-build verify verify-docker verify-index publish-check publish-test publish
 
 PYTHON := python3
 VENV := .venv
@@ -19,6 +19,7 @@ help:
 	@echo "  make lint-imports  — import-linter"
 	@echo "  make contracts     — пересчитать белые списки import-linter из дерева nu/"
 	@echo "  make contracts-check — проверить, что белые списки не устарели"
+	@echo "  make demo          — демо: шаблон → sync → запрос → связи"
 	@echo "  make bench         — бенчмарк стора (BACKEND=sqlite|json, N=объектов)"
 	@echo "  make typecheck     — mypy (strict, nu + tau + eta)"
 	@echo "  make format        — ruff format + ruff check --fix"
@@ -79,6 +80,9 @@ contracts:
 
 contracts-check:
 	$(PY) -m eta.sync_contracts --check
+
+demo:
+	PYTHON=$(CURDIR)/$(VENV)/bin/python bash scripts/demo.sh
 
 bench:
 	$(VENV)/bin/python scripts/bench.py --backend $(or $(BACKEND),sqlite) --n $(or $(N),1000)

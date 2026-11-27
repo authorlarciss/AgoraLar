@@ -5,7 +5,7 @@
 
 ## 0. Статус (2026-11-27)
 
-**Текущая версия — 0.16.0** на ядре `axislar-core` 0.12.0 (contract 5).
+**Текущая версия — 0.17.0** на ядре `axislar-core` 0.12.0 (contract 5).
 Выполнено: P0–P5 и сверх плана — HTTP, история прогонов, периодический
 `watch`, провенанс и reuse производных фактов. Плагины: `json` (0.5.3),
 `sqlite` (0.4.3), `filesystem` (0.3.3), `sql` (0.2.3), `http` (0.2.3),
@@ -41,6 +41,9 @@ CLI `artifact put/get/ls/rm`, HTTP `/artifacts`, бэкенды `json`/`sqlite`
 | Обратные ссылки: `references_to` в `json`/`sqlite` сторах (порт `IReferenceIndex`) | ядро 0.11 (ADR-0021 ядра) |
 | Самостоятельный SQL-бэкенд: запросы, индексы, обход ссылок, без полной загрузки | `plugins/store_sqlite` (формат 2) |
 | Бенчмарк сторов: `make bench BACKEND=json N=1000` | `scripts/bench.py` |
+| Шаблоны схемы и конфига: `init --template`, `init --list` | `nu/iota/public/templates.py` |
+| Обратные ссылки из CLI: `links --id` | `nu/gamma/_internal/cli.py` |
+| Демо: шаблон → sync → query → связи | `examples/demo`, `scripts/demo.sh` |
 | Анализаторы: `agoralar analyze`, плагин `text`, провенанс в `derived_by` | `nu/beta/public/analyzers.py`, `plugins/analyzer_text` (ADR-0018) |
 
 ## 2. Не цели
@@ -98,12 +101,11 @@ cookbook) разобраны отдельно — `lambda/ROADMAP.md`, там ж
    тестах ядра.
 9. **Анализаторы изображений/эмбеддингов.** Тем же контрактом `IAnalyzer`;
    учесть вес образа (Pillow) и `ArtifactMismatch` при совпадении байтов.
-10. **Демо-стенд** (`examples/demo` + `make demo`): пара видео/заметок,
-    `agoralar.toml`, сценарий `sync → analyze → query` за одну команду.
-    *Готово, когда* новый человек получает результат без чтения README.
-11. **`agoralar init --template <имя>`**: `video-archive`, `obsidian-vault`
-    (ROADMAP §1). *Готово, когда* схема и конфиг создаются одной командой,
-    повторный запуск без `--force` отказывает.
+10. **Демо-стенд** — сделано: `examples/demo` + `make demo` + e2e-тест.
+    Сценарий `init → sync → query → links` за одну команду, файлы
+    источника не меняются.
+11. **`agoralar init --template <имя>`** — сделано: `video-archive`,
+    `obsidian-vault`, `--list`, `--force`, шаблон не создаёт объектов.
 12. **Пакетный импорт связей** (ROADMAP §5.1): `apply_plan` в ядре пишет
     объекты пачкой через `bulk_upsert` (ссылки проверяются по всей пачке),
     чтобы первый импорт связанных заметок не падал на `DanglingReference`.

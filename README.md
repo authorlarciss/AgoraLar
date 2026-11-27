@@ -32,9 +32,9 @@
   и делятся между объектами: `artifact put/get/ls/rm` и маршруты
   `/artifacts` в HTTP. Ссылка живёт в объекте (`put --artifact role=hash`),
   сами байты — отдельно.
-- **Связи.** Сторы отдают обратный индекс ссылок (`references_to`, ядро
-  0.11): «кто ссылается на этот объект и по какой оси». Пользовательской
-  команды пока нет — это опора для будущего графа и проверок удаления.
+- **Связи.** Обратный индекс ссылок (`references_to`) и команда
+  `agoralar links --id ...`: «кто ссылается на этот объект и по какой оси».
+  Опора для будущего графа и проверок удаления.
 - **Анализаторы.** Производные артефакты делают плагины вида `analyzer`
   (`agoralar analyze`): входная роль → роль, названная анализатором, с
   провенансом `plugin@version`. В комплекте — `text` (предпросмотр).
@@ -74,16 +74,34 @@
 
 ## Быстрый старт
 
+Демо целиком, без чтения документации:
+
+```bash
+make demo    # шаблон → синхронизация каталога → запрос → связи, ~10 секунд
+```
+
+Своё хранилище:
+
+```bash
+agoralar init --list                      # шаблоны: video-archive, obsidian-vault
+agoralar init --template video-archive    # agoralar.toml + оси в сторе
+mkdir -p library/collection-a/noir/"VTA Night City"
+# ... положить файлы в library/<collection>/<section>/<title>/ ...
+agoralar sync --apply                     # дерево файлов → объекты (файлы не меняются)
+agoralar query --filter section:contains=noir
+agoralar links --id <id>                  # кто ссылается на объект
+```
+
+Повторный `init` без `--force` отказывает, с `--force` только добавляет
+недостающие оси: оси неизменяемы (DOMAIN A4), переименовать их нельзя.
+
+Разработка:
+
 ```bash
 make install            # venv + dev-зависимости
-
-make core               # ядро из локального wheel ../AxisLar/dist (репозиторий приватный)
-# плагины ставятся как path-зависимости при uv sync (plugins/*)
-# или из артефакта релиза:
-# gh release download v0.8.0 -R authorlarciss/AxisLar -p '*.whl' -D /tmp/core
-# uv pip install /tmp/core/axislar_core-0.8.0-py3-none-any.whl
-
+make core               # ядро из локального wheel ../AxisLar/dist
 make check              # линт, контракты, типы, тесты
+make bench              # бенчмарк стора (BACKEND=sqlite|json, N=объектов)
 ```
 
 ## Как проверить состояние
@@ -153,7 +171,7 @@ uid, либо запускать с `--user $(id -u):$(id -g)`. TLS, лимит�
 # ядро берётся из релиза AxisLar
 mkdir -p wheels/axislar wheels/agoralar
 gh release download v0.12.0 -R authorlarciss/AxisLar -p '*.whl' --dir wheels/axislar
-gh release download v0.16.0 -R authorlarciss/AgoraLar -p '*.whl' --dir wheels/agoralar
+gh release download v0.17.0 -R authorlarciss/AgoraLar -p '*.whl' --dir wheels/agoralar
 
 uv venv .venv
 uv pip install --python .venv/bin/python \
@@ -212,7 +230,7 @@ MIT — см. [LICENSE](LICENSE).
 
 ## Статус
 
-`0.16.0`: MIT, честные зависимости, ядро 0.12.0 (обратные ссылки — `references_to` в сторах); реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
+`0.17.0`: MIT, честные зависимости, ядро 0.12.0 (обратные ссылки — `references_to` в сторах); реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
 HTTP с bearer-токеном и образом в `Dockerfile`, анализатор текста,
 источники `filesystem`, `sql` и `http`, CLI (`sync`, `watch`, `serve` — HTTP), конфиг `agoralar.toml`,
 история прогонов, провенанс и reuse производных фактов по `content_hash`,
