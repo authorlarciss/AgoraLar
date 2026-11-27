@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agoralar-source-http"
-version = "0.2.3"
+version = "0.2.4"
 description = "HTTP JSON API как источник объектов для AxisLar (плагин AgoraLar)"
 readme = "README.md"
 license = "MIT"

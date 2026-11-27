@@ -35,7 +35,7 @@ requires-dist = [
     { name = "agoralar-source-sql", editable = "plugins/source_sql" },
     { name = "agoralar-store-json", editable = "plugins/store_json" },
     { name = "agoralar-store-sqlite", editable = "plugins/store_sqlite" },
-    { name = "axislar-core", path = "../AxisLar/dist/axislar_core-0.12.0-py3-none-any.whl" },
+    { name = "axislar-core", path = "../AxisLar/dist/axislar_core-0.12.1-py3-none-any.whl" },
     { name = "import-linter", marker = "extra == 'dev'", specifier = ">=2.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "packaging", specifier = ">=24.0" },
@@ -49,7 +49,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-analyzer-text"
-version = "0.1.3"
+version = "0.1.4"
 source = { editable = "plugins/analyzer_text" }
 
 [package.metadata]
@@ -63,7 +63,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-source-filesystem"
-version = "0.3.3"
+version = "0.3.4"
 source = { editable = "plugins/source_filesystem" }
 dependencies = [
     { name = "axislar-core" },
@@ -81,7 +81,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-source-http"
-version = "0.2.3"
+version = "0.2.4"
 source = { editable = "plugins/source_http" }
 dependencies = [
     { name = "axislar-core" },
@@ -99,7 +99,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-source-sql"
-version = "0.2.3"
+version = "0.2.4"
 source = { editable = "plugins/source_sql" }
 dependencies = [
     { name = "axislar-core" },
@@ -117,7 +117,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-store-json"
-version = "0.5.3"
+version = "0.5.4"
 source = { editable = "plugins/store_json" }
 dependencies = [
     { name = "axislar-core" },
@@ -135,7 +135,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-store-sqlite"
-version = "0.4.3"
+version = "0.4.4"
 source = { editable = "plugins/store_sqlite" }
 dependencies = [
     { name = "axislar-core" },
@@ -225,13 +225,13 @@ wheels = [
 
 [[package]]
 name = "axislar-core"
-version = "0.12.0"
-source = { path = "../AxisLar/dist/axislar_core-0.12.0-py3-none-any.whl" }
+version = "0.12.1"
+source = { path = "../AxisLar/dist/axislar_core-0.12.1-py3-none-any.whl" }
 dependencies = [
     { name = "pydantic" },
 ]
 wheels = [
-    { filename = "axislar_core-0.12.0-py3-none-any.whl", hash = "sha256:b77392a4b75515a4343802c3a8406b07c7b0435d4fd2af62ce108a682711964a" },
+    { filename = "axislar_core-0.12.1-py3-none-any.whl", hash = "sha256:53afe9a5ac6acefba81f35709b1b743f3fa89a737e6ec920543d07ad12a57a52" },
 ]
 
 [package.metadata]

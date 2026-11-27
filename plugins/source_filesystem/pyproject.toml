@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agoralar-source-filesystem"
-version = "0.3.3"
+version = "0.3.4"
 description = "Файловое дерево как источник объектов для AxisLar (плагин AgoraLar)"
 readme = "README.md"
 license = "MIT"
