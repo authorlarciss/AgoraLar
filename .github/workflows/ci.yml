@@ -167,7 +167,7 @@ jobs:
             curl -fsS -o /dev/null "https://pypi.org/pypi/$1/$2/json"
           }
           publish() {
-            local file project version
+            local file project version pattern
             for file in "$@"; do
               project=$(basename "$file" | cut -d- -f1 | tr '_' '-')
               version=$(basename "$file" | cut -d- -f2)
@@ -175,7 +175,11 @@ jobs:
                 echo "skip: $project $version уже в индексе"
                 continue
               fi
-              uv publish --trusted-publishing always "$file"
+              # Передаём шаблон, а не один файл: тогда uv группирует
+              # дистрибутив с его PEP 740 sidecar-аттестацией и загружает
+              # их вместе (uv >= 0.9.12).
+              pattern="dist/$(basename "$file" | cut -d- -f1)-${version}*"
+              uv publish --trusted-publishing always $pattern
             done
           }
           publish dist/agoralar-*.whl dist/agoralar-*.tar.gz
