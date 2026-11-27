@@ -56,17 +56,18 @@ jobs:
         run: make check
 
       # Отчёт покрытия — артефактом, без внешних сервисов: числа проверяемые,
-      # а не бейдж, который врёт при первом расхождении.
+      # а не бейдж, который врёт при первом расхождении. Каталог без точки
+      # в имени: upload-artifact не берёт скрытые файлы по умолчанию.
       - name: Coverage HTML
         if: always()
-        run: .venv/bin/coverage html -d .coverage-html || true
+        run: .venv/bin/coverage html -d coverage-html || true
 
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-html
-          path: .coverage-html
+          path: coverage-html
 
   dist:
     name: dist (теги)

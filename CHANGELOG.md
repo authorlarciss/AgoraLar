@@ -9,6 +9,14 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.20.6] - 2026-11-27
+
+### Fixed
+
+- Артефакт покрытия не загружался: `upload-artifact` по умолчанию не берёт
+  скрытые файлы, а отчёт писался в `.coverage-html`. Каталог переименован
+  в `coverage-html`.
+
 ## [0.20.5] - 2026-11-27
 
 ### Changed
