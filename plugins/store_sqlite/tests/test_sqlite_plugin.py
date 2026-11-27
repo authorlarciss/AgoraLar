@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import closing
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,7 @@ from axislar_core.contracts import (
     IReferenceIndex,
     ReferenceLink,
     ReferenceValue,
+    StorageSchema,
     run_storage_contract,
 )
 
@@ -138,3 +140,127 @@ async def test_reference_traversal_survives_reopen(tmp_path: Path) -> None:
 
     reopened = store(tmp_path)
     assert await reopened.references_to(EntityId("b")) == expected
+
+
+def _write_v1_store(path: Path, schema: StorageSchema, entities: list[Entity]) -> None:
+    """Собрать файл формата 1 руками: без колонки `deleted` и без индексов."""
+    with closing(sqlite3.connect(path)) as connection, connection:
+        connection.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        connection.execute("CREATE TABLE entities (id TEXT PRIMARY KEY, doc TEXT NOT NULL)")
+        connection.execute(
+            "CREATE TABLE artifacts ("
+            "content_hash TEXT PRIMARY KEY, media_type TEXT NOT NULL, data BLOB NOT NULL)"
+        )
+        connection.executemany(
+            "INSERT INTO meta (key, value) VALUES (?, ?)",
+            [("version", "1"), ("schema", schema.model_dump_json())],
+        )
+        connection.executemany(
+            "INSERT INTO entities (id, doc) VALUES (?, ?)",
+            [(str(entity.id), entity.model_dump_json()) for entity in entities],
+        )
+
+
+def _schema_with_links() -> StorageSchema:
+    return StorageSchema(
+        axes=(
+            AxisDefinition(name="theme", kind=AxisKind.CATEGORICAL),
+            AxisDefinition(name="links", kind=AxisKind.REFERENCE, multi=True, target="note"),
+        )
+    )
+
+
+def _note_with_link(source: str, target: str) -> Entity:
+    return Entity(
+        id=EntityId(source),
+        kind="note",
+        facets={"links": (ReferenceValue(target=EntityId(target)),)},
+    )
+
+
+async def test_v1_store_is_migrated_on_traversal(tmp_path: Path) -> None:
+    """Старый файл мигрируется: появляется `deleted`, индексы и версия 2."""
+    path = tmp_path / "v1.sqlite3"
+    _write_v1_store(
+        path,
+        _schema_with_links(),
+        [_note_with_link("a", "b"), Entity(id=EntityId("b"), kind="note")],
+    )
+
+    engine = SqliteStore(path)
+    links = await engine.references_to(EntityId("b"))
+
+    assert links == (ReferenceLink(axis="links", entity_id=EntityId("a")),)
+    with closing(sqlite3.connect(path)) as connection:
+        version = connection.execute("SELECT value FROM meta WHERE key = 'version'").fetchone()
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(entities)")}
+        indexed = connection.execute("SELECT COUNT(*) FROM ref_index").fetchone()
+    assert version == ("2",)
+    assert "deleted" in columns
+    assert indexed == (1,)
+
+
+async def test_incremental_flush_updates_only_changed_rows(tmp_path: Path) -> None:
+    """Запись одного объекта не переписывает остальные и правит индексы."""
+    engine = store(tmp_path)
+    await engine.add_axis(AxisDefinition(name="theme", kind=AxisKind.CATEGORICAL))
+    await engine.bulk_upsert(
+        [
+            Entity.model_validate(
+                {
+                    "id": "e-1",
+                    "kind": "note",
+                    "facets": {"theme": [{"kind": "categorical", "value": "a"}]},
+                }
+            ),
+            Entity.model_validate(
+                {
+                    "id": "e-2",
+                    "kind": "note",
+                    "facets": {"theme": [{"kind": "categorical", "value": "b"}]},
+                }
+            ),
+        ]
+    )
+    await engine.upsert(
+        Entity.model_validate(
+            {
+                "id": "e-1",
+                "kind": "note",
+                "facets": {"theme": [{"kind": "categorical", "value": "c"}]},
+            }
+        )
+    )
+
+    with closing(sqlite3.connect(tmp_path / "vault.sqlite3")) as connection:
+        rows = connection.execute("SELECT COUNT(*) FROM entities").fetchone()
+        facets = connection.execute(
+            "SELECT axis, value, entity_id FROM facet_index ORDER BY value"
+        ).fetchall()
+
+    assert rows == (2,), "обновление не должно добавлять или терять строки"
+    assert facets == [("theme", "b", "e-2"), ("theme", "c", "e-1")], "старое значение ушло"
+
+
+async def test_traversal_sees_tombstones_only_when_asked(tmp_path: Path) -> None:
+    engine = store(tmp_path)
+    await engine.add_axis(
+        AxisDefinition(name="links", kind=AxisKind.REFERENCE, multi=True, target="note")
+    )
+    await engine.bulk_upsert([_note_with_link("a", "b"), Entity(id=EntityId("b"), kind="note")])
+
+    deleted = _note_with_link("a", "b").model_copy(
+        update={"deleted_at": datetime(2026, 1, 1, tzinfo=UTC)}
+    )
+    assert await engine.upsert(deleted) == []
+
+    assert await engine.references_to(EntityId("b")) == ()
+    assert await engine.references_to(EntityId("b"), include_deleted=True) == (
+        ReferenceLink(axis="links", entity_id=EntityId("a")),
+    )
+
+
+async def test_traversal_on_missing_file_creates_nothing(tmp_path: Path) -> None:
+    engine = store(tmp_path)
+    assert await engine.references_to(EntityId("nobody")) == ()
+    assert not (tmp_path / "vault.sqlite3").exists(), "чтение не должно создавать файл"

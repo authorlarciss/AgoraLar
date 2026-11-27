@@ -9,6 +9,24 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+
+- **Инкрементальная запись в `sqlite`-сторе** (формат 2, `STORE_VERSION=2`):
+  `_flush` пишет только объекты, изменённые с прошлого вызова, и пересобирает
+  индексные строки только для них. Раньше каждая запись удаляла и заново
+  вставляла всю таблицу (`DELETE FROM entities` + полная вставка).
+- **Индексы в `sqlite`-сторе**: `facet_index(axis, value, num, entity_id)` и
+  `ref_index(axis, target_id, entity_id)` с индексами по `axis`/`target_id`.
+  Колонка `entities.deleted` позволяет фильтровать tombstone в SQL.
+- **Миграция формата 1 → 2** при открытии: добавляется `deleted`, индексы
+  пересобираются из документов, версия обновляется в той же транзакции.
+- **Обход ссылок через SQL**: `references_to` в `sqlite`-сторе читает
+  `ref_index` и не загружает все документы в память; файл формата 1
+  мигрируется, для отсутствующего файла ничего не создаётся.
+- `scripts/bench.py` и `make bench` (`BACKEND=sqlite|json`, `N=объектов`):
+  запись, обновление, чтение по `id`, запрос по оси, обход ссылок,
+  переоткрытие. Числа — в README.
+
 ### Changed
 
 - `capabilities()` в `JsonStore`/`SqliteStore` кэширует набор: раньше
