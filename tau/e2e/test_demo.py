@@ -33,3 +33,4 @@ def test_demo_script_runs_end_to_end() -> None:
     assert "applied: 4" in printed, "источник должен записать четыре объекта"
     assert "related <- ep-a" in printed, "связи должны быть видны через links"
     assert "файлы источника не менялись" in printed
+    assert "report.html" in printed, "демо должно заканчиваться отчётом"

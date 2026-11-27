@@ -33,25 +33,28 @@ step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 cp -R "$ROOT/examples/demo/library" "$WORK/library"
 cd "$WORK"
 
-step "1/5 шаблон: схема и конфиг из video-archive"
+step "1/6 шаблон: схема и конфиг из video-archive"
 cli init --template video-archive
 
-step "2/5 дерево файлов → объекты (источник только читает)"
+step "2/6 дерево файлов → объекты (источник только читает)"
 cli sync --apply
 
-step "3/5 запрос по оси: что лежит в разделе noir"
+step "3/6 запрос по оси: что лежит в разделе noir"
 cli query --filter section:contains=noir
 
-step "4/5 карточка одного объекта"
+step "4/6 карточка одного объекта"
 first=$(cli query --filter format:contains=mp4 --json |
     "$PYTHON" -c 'import json, sys; print(json.load(sys.stdin)["ids"][0])')
 cli show --id "$first"
 
-step "5/5 связи: кто ссылается на объект"
+step "5/6 связи: кто ссылается на объект"
 # сначала цель, потом ссылка: модель запрещает висячие ссылки
 cli put --id ep-b --kind video --facet collection=manual >/dev/null
 cli put --id ep-a --kind video --facet collection=manual --facet related=ep-b >/dev/null
 cli links --id ep-b
 
-printf '\n\033[1mготово\033[0m: хранилище %s/vault.sqlite3\n' "$WORK"
+step "6/6 отчёт о разреженности (автономный HTML)"
+cli visualize --output report.html
+
+printf '\n\033[1mготово\033[0m: хранилище %s/vault.sqlite3, отчёт %s/report.html\n' "$WORK" "$WORK"
 echo "файлы источника не менялись: $(find "$WORK/library" -type f | wc -l | tr -d ' ') файлов на месте"

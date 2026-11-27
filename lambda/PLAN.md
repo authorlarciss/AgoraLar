@@ -5,7 +5,7 @@
 
 ## 0. Статус (2026-11-27)
 
-**Текущая версия — 0.18.0** на ядре `axislar-core` 0.12.0 (contract 5).
+**Текущая версия — 0.19.0** на ядре `axislar-core` 0.12.0 (contract 5).
 Выполнено: P0–P5 и сверх плана — HTTP, история прогонов, периодический
 `watch`, провенанс и reuse производных фактов. Плагины: `json` (0.5.4),
 `sqlite` (0.4.4), `filesystem` (0.3.4), `sql` (0.2.4), `http` (0.2.4),
@@ -44,7 +44,8 @@ CLI `artifact put/get/ls/rm`, HTTP `/artifacts`, бэкенды `json`/`sqlite`
 | Источник заметок: frontmatter, `#tags`, `[[wiki-links]]` | `plugins/source_markdown` |
 | Шаблоны схемы и конфига: `init --template`, `init --list` | `nu/iota/public/templates.py` |
 | Обратные ссылки из CLI: `links --id` | `nu/gamma/_internal/cli.py` |
-| Демо: шаблон → sync → query → связи | `examples/demo`, `scripts/demo.sh` |
+| Отчёт о разреженности: `visualize --output` | `nu/gamma/_internal/visualize.py` |
+| Демо: шаблон → sync → query → связи → отчёт | `examples/demo`, `scripts/demo.sh` |
 | Анализаторы: `agoralar analyze`, плагин `text`, провенанс в `derived_by` | `nu/beta/public/analyzers.py`, `plugins/analyzer_text` (ADR-0018) |
 
 ## 2. Не цели
@@ -120,9 +121,11 @@ cookbook) разобраны отдельно — `lambda/ROADMAP.md`, там ж
 14. **`export --format symlinks --group-by axis:…`** (ROADMAP §3): дерево
     представлений без изменения оригиналов, `--dry-run` по умолчанию,
     политика для мультизначных и отсутствующих значений.
-15. **`agoralar visualize`** (ROADMAP §7): автономный HTML-отчёт
-    (распределение объектов по осям, разреженность, размеры). *Готово,
-    когда* файл открывается без сети и без зависимостей.
+15. **`agoralar visualize`** — сделано (ROADMAP §7): автономный HTML без
+    сети, ресурсов и JavaScript; заполненность и распределение по каждой
+    оси, медиана/min/max для measurable, доля скаляров, пустые оси
+    отдельным предупреждением, JSON-блок с теми же данными для машин.
+    Пользовательские строки экранируются (тест на `<script>`).
 16. **Web UI на loopback** (ROADMAP §4.2): статика в `nu/gamma/public/`,
     список/фильтры/карточка/скачивание артефакта; токен — только
     `sessionStorage` и явное предупреждение. *Готово, когда* UI работает

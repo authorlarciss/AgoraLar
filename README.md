@@ -33,6 +33,9 @@
   и делятся между объектами: `artifact put/get/ls/rm` и маршруты
   `/artifacts` в HTTP. Ссылка живёт в объекте (`put --artifact role=hash`),
   сами байты — отдельно.
+- **Отчёт.** `agoralar visualize` пишет автономный HTML: сколько объектов
+  заполнили каждую ось, какие значения встречаются, где разреженность.
+  Без сети, без внешних ресурсов, без JavaScript — файл можно переслать.
 - **Связи.** Обратный индекс ссылок (`references_to`) и команда
   `agoralar links --id ...`: «кто ссылается на этот объект и по какой оси».
   Опора для будущего графа и проверок удаления.
@@ -180,7 +183,7 @@ uid, либо запускать с `--user $(id -u):$(id -g)`. TLS, лимит�
 # ядро берётся из релиза AxisLar
 mkdir -p wheels/axislar wheels/agoralar
 gh release download v0.12.1 -R authorlarciss/AxisLar -p '*.whl' --dir wheels/axislar
-gh release download v0.18.0 -R authorlarciss/AgoraLar -p '*.whl' --dir wheels/agoralar
+gh release download v0.19.0 -R authorlarciss/AgoraLar -p '*.whl' --dir wheels/agoralar
 
 uv venv .venv
 uv pip install --python .venv/bin/python \
@@ -239,7 +242,7 @@ MIT — см. [LICENSE](LICENSE).
 
 ## Статус
 
-`0.18.0`: MIT, честные зависимости, ядро 0.12.0 (обратные ссылки — `references_to` в сторах); реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
+`0.19.0`: MIT, честные зависимости, ядро 0.12.0 (обратные ссылки — `references_to` в сторах); реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
 HTTP с bearer-токеном и образом в `Dockerfile`, анализатор текста,
 источники `markdown`, `filesystem`, `sql` и `http`, CLI (`sync`, `watch`, `serve` — HTTP), конфиг `agoralar.toml`,
 история прогонов, провенанс и reuse производных фактов по `content_hash`,

@@ -723,6 +723,18 @@ async def run(args: argparse.Namespace) -> int:
         print(render_result(await product.core.query(build_query(args)), args.json))
         return 0
 
+    if args.command == "visualize":
+        from nu.gamma._internal.visualize import collect, render
+
+        schema = await product.core.schema()
+        entities = await product.core.storage.list_entities(include_deleted=True)
+        artifacts = await product.core.storage.list_artifacts()
+        report = collect(product.store, schema, entities, artifacts)
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(render(report), encoding="utf-8")
+        print(f"report {args.output}: {report.total} объектов, {len(report.axes)} осей")
+        return 0
+
     if args.command == "links":
         storage = product.core.storage
         if not isinstance(storage, IReferenceIndex):
@@ -820,6 +832,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="конфиг уже есть: добавить недостающие оси вместо отказа",
     )
     init.set_defaults(command="init")
+
+    visualize = subparsers.add_parser("visualize", help="автономный HTML-отчёт о хранилище")
+    visualize.add_argument(
+        "--output",
+        type=Path,
+        default=Path("agoralar-report.html"),
+        help="куда записать отчёт (по умолчанию agoralar-report.html)",
+    )
+    visualize.set_defaults(command="visualize")
 
     links = subparsers.add_parser("links", help="кто ссылается на объект")
     links.add_argument("--id", required=True, help="id объекта")
