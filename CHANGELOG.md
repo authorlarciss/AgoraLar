@@ -9,6 +9,25 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-27
+
+### Added
+
+- **`agoralar-source-markdown` 0.1.0** (ROADMAP §4.1): источник заметок
+  Markdown. Frontmatter (скаляры, `[a, b]`, блок `- item`), `#tags` в теле,
+  `[[wiki-links]]` с якорем и псевдонимом; кодовые блоки игнорируются.
+  Раскладка: `folder`, `tags`, `created`, `links` (reference → `note`),
+  скаляры `title`, `path`, `filename`. Битая ссылка — предупреждение, а не
+  теневой объект. Проходит `run_source_contract` и `run_source_sync_contract`.
+- Шаблон **`obsidian-vault`** переведён на источник `markdown`:
+  оси `folder`, `tags`, `created`, `links`; `sync --source markdown` уже
+  даёт связи, видимые в `agoralar links`.
+
+### Changed
+
+- Продукт зависит от `agoralar-source-markdown>=0.1,<0.2`;
+  `agoralar plugins list` показывает семь плагинов.
+
 ## [0.17.1] - 2026-11-27
 
 ### Changed

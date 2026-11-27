@@ -5,11 +5,11 @@
 
 ## 0. Статус (2026-11-27)
 
-**Текущая версия — 0.17.1** на ядре `axislar-core` 0.12.0 (contract 5).
+**Текущая версия — 0.18.0** на ядре `axislar-core` 0.12.0 (contract 5).
 Выполнено: P0–P5 и сверх плана — HTTP, история прогонов, периодический
 `watch`, провенанс и reuse производных фактов. Плагины: `json` (0.5.4),
 `sqlite` (0.4.4), `filesystem` (0.3.4), `sql` (0.2.4), `http` (0.2.4),
-анализатор `text` (0.1.4) — все `requires_contract >=5,<6`.
+`markdown` (0.1.0), анализатор `text` (0.1.4) — все `requires_contract >=5,<6`.
 
 В 0.10.0 добавлено: параметры источника из `[plugins.<имя>]` и `--option`
 (ADR-0015) и плагин-источник `sql` (sqlite, только чтение; `NULL` = отсутствие
@@ -41,6 +41,7 @@ CLI `artifact put/get/ls/rm`, HTTP `/artifacts`, бэкенды `json`/`sqlite`
 | Обратные ссылки: `references_to` в `json`/`sqlite` сторах (порт `IReferenceIndex`) | ядро 0.11 (ADR-0021 ядра) |
 | Самостоятельный SQL-бэкенд: запросы, индексы, обход ссылок, без полной загрузки | `plugins/store_sqlite` (формат 2) |
 | Бенчмарк сторов: `make bench BACKEND=json N=1000` | `scripts/bench.py` |
+| Источник заметок: frontmatter, `#tags`, `[[wiki-links]]` | `plugins/source_markdown` |
 | Шаблоны схемы и конфига: `init --template`, `init --list` | `nu/iota/public/templates.py` |
 | Обратные ссылки из CLI: `links --id` | `nu/gamma/_internal/cli.py` |
 | Демо: шаблон → sync → query → связи | `examples/demo`, `scripts/demo.sh` |
@@ -111,9 +112,11 @@ cookbook) разобраны отдельно — `lambda/ROADMAP.md`, там ж
     чтобы первый импорт связанных заметок не падал на `DanglingReference`.
     Правка без смены контракта и без ADR — семантика уже определена портом.
     *Готово, когда* импорт заметок со ссылками проходит с первого прогона.
-13. **`agoralar-source-markdown`** (ROADMAP §4.1): frontmatter, `#tags`,
-    `[[links]]` → фасеты и reference-оси. *Готово, когда* папка Obsidian
-    импортируется целиком, связи видны в запросах.
+13. **`agoralar-source-markdown`** — сделано (ROADMAP §4.1): frontmatter,
+    `#tags`, `[[links]]` (с якорем и псевдонимом) → фасеты и reference-ось;
+    битая ссылка — предупреждение, а не теневой объект; кодовые блоки
+    игнорируются. Шаблон `obsidian-vault` переведён на этот источник,
+    e2e-тест проверяет `sync → query → links`.
 14. **`export --format symlinks --group-by axis:…`** (ROADMAP §3): дерево
     представлений без изменения оригиналов, `--dry-run` по умолчанию,
     политика для мультизначных и отсутствующих значений.

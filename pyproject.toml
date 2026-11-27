@@ -20,6 +20,7 @@ dependencies = [
     "agoralar-store-sqlite>=0.4,<0.5",
     "agoralar-source-filesystem>=0.3,<0.4",
     "agoralar-source-sql>=0.2,<0.3",
+    "agoralar-source-markdown>=0.1,<0.2",
     "agoralar-source-http>=0.2,<0.3",
     "agoralar-analyzer-text>=0.1,<0.2",
 ]
@@ -29,6 +30,7 @@ agoralar-store-json = { path = "plugins/store_json", editable = true }
 agoralar-store-sqlite = { path = "plugins/store_sqlite", editable = true }
 agoralar-source-filesystem = { path = "plugins/source_filesystem", editable = true }
 agoralar-source-sql = { path = "plugins/source_sql", editable = true }
+agoralar-source-markdown = { path = "plugins/source_markdown", editable = true }
 agoralar-source-http = { path = "plugins/source_http", editable = true }
 agoralar-analyzer-text = { path = "plugins/analyzer_text", editable = true }
 # Локальная разработка: ядро берётся из собранного колеса соседнего проекта.

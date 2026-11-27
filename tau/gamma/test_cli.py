@@ -262,6 +262,7 @@ def test_plugins_list_json(capsys: pytest.CaptureFixture[str]) -> None:
         "filesystem",
         "http",
         "json",
+        "markdown",
         "sql",
         "sqlite",
         "text",

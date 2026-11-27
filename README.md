@@ -22,7 +22,8 @@
   даёт внятную ошибку вместо падения.
 - **Готовые хранилища.** В комплекте два бэкенда: `json` (файл) и
   `sqlite` (durable). Оба проходят контрактный набор ядра.
-- **Источники.** `filesystem` (дерево каталогов → оси, имя файла → фасеты),
+- **Источники.** `markdown` (заметки: frontmatter, `#tags`, `[[wiki-links]]`
+  → reference-ось), `filesystem` (дерево каталогов → оси, имя файла → фасеты),
   `sql` (таблица или `SELECT` в sqlite) и `http` (JSON-API). `sync` приводит
   хранилище в соответствие с источником (создание, переименование по хэшу,
   tombstone), `watch` делает это периодически и помнит историю прогонов.
@@ -90,6 +91,14 @@ mkdir -p library/collection-a/noir/"VTA Night City"
 agoralar sync --apply                     # дерево файлов → объекты (файлы не меняются)
 agoralar query --filter section:contains=noir
 agoralar links --id <id>                  # кто ссылается на объект
+
+Заметки Obsidian — то же самое, но источник `markdown`:
+
+```bash
+agoralar init --template obsidian-vault    # оси: folder, tags, created, links
+# ... положить .md в vault/ с [[wiki-ссылками]] и #тегами ...
+agoralar sync --source markdown --apply
+agoralar query --filter tags:contains=noir
 ```
 
 Повторный `init` без `--force` отказывает, с `--force` только добавляет
@@ -171,7 +180,7 @@ uid, либо запускать с `--user $(id -u):$(id -g)`. TLS, лимит�
 # ядро берётся из релиза AxisLar
 mkdir -p wheels/axislar wheels/agoralar
 gh release download v0.12.1 -R authorlarciss/AxisLar -p '*.whl' --dir wheels/axislar
-gh release download v0.17.1 -R authorlarciss/AgoraLar -p '*.whl' --dir wheels/agoralar
+gh release download v0.18.0 -R authorlarciss/AgoraLar -p '*.whl' --dir wheels/agoralar
 
 uv venv .venv
 uv pip install --python .venv/bin/python \
@@ -187,7 +196,7 @@ uv pip install --python .venv/bin/python \
 Проверить, что всё на месте:
 
 ```bash
-.venv/bin/agoralar plugins list        # 5 плагинов + анализатор, contract >=5,<6
+.venv/bin/agoralar plugins list        # 7 плагинов (6 источников/хранилищ + анализатор)
 .venv/bin/agoralar schema show         # пустая схема
 ```
 
@@ -230,9 +239,9 @@ MIT — см. [LICENSE](LICENSE).
 
 ## Статус
 
-`0.17.1`: MIT, честные зависимости, ядро 0.12.0 (обратные ссылки — `references_to` в сторах); реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
+`0.18.0`: MIT, честные зависимости, ядро 0.12.0 (обратные ссылки — `references_to` в сторах); реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
 HTTP с bearer-токеном и образом в `Dockerfile`, анализатор текста,
-источники `filesystem`, `sql` и `http`, CLI (`sync`, `watch`, `serve` — HTTP), конфиг `agoralar.toml`,
+источники `markdown`, `filesystem`, `sql` и `http`, CLI (`sync`, `watch`, `serve` — HTTP), конфиг `agoralar.toml`,
 история прогонов, провенанс и reuse производных фактов по `content_hash`,
 обратные ссылки через `references_to`.
 План — `lambda/PLAN.md`, решения — `lambda/adr/`.

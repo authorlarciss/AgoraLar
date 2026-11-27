@@ -78,32 +78,33 @@ VIDEO_ARCHIVE = Template(
     },
 )
 
-#: Заметки в духе Obsidian: папка и заголовок как оси, файл — как объект.
-#: Связи `[[wiki-links]]` появятся вместе с markdown-источником (ROADMAP §4.1),
-#: поэтому reference-ось в шаблон не входит: обещать её рано.
+#: Заметки в духе Obsidian: папка и теги как оси, `[[wiki-links]]` — как
+#: reference-ось, дата создания из frontmatter. Источник — плагин
+#: `markdown` (ROADMAP §4.1); связи сразу видны в `agoralar links`.
 OBSIDIAN_VAULT = Template(
     name="obsidian-vault",
-    summary="заметки: папки, заголовки, формат (markdown через filesystem-источник)",
+    summary="заметки Obsidian: папки, теги, wiki-ссылки, дата создания",
     store="sqlite",
     axes=(
         AxisDefinition(name="folder", kind=AxisKind.CATEGORICAL, description="папка заметки"),
-        AxisDefinition(name="title", kind=AxisKind.CATEGORICAL, description="имя заметки"),
-        AxisDefinition(name="author", kind=AxisKind.CATEGORICAL, description="автор из имени"),
-        AxisDefinition(name="taken_at", kind=AxisKind.MEASURABLE, description="дата из имени, сек"),
-        AxisDefinition(name="format", kind=AxisKind.CATEGORICAL, description="расширение"),
+        AxisDefinition(name="tags", kind=AxisKind.CATEGORICAL, multi=True, description="теги"),
+        AxisDefinition(name="created", kind=AxisKind.MEASURABLE, description="дата создания, сек"),
+        AxisDefinition(
+            name="links",
+            kind=AxisKind.REFERENCE,
+            multi=True,
+            target="note",
+            description="wiki-ссылки",
+        ),
     ),
     scalars=(
+        ScalarDefinition(name="title", searchable=True),
         ScalarDefinition(name="path", searchable=True),
         ScalarDefinition(name="filename", searchable=True),
     ),
     plugins={
         "sqlite": {"path": "vault.sqlite3"},
-        "filesystem": {
-            "root": "vault",
-            "source_id": "vault",
-            "levels": ["folder", "title"],
-            "suffixes": [".md"],
-        },
+        "markdown": {"root": "vault", "source_id": "vault"},
     },
 )
 
