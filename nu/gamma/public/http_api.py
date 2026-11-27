@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import base64
 import binascii
-import hashlib
 import json
 import secrets
 from collections.abc import Mapping
@@ -22,13 +21,20 @@ from axislar_core.contracts import (
     DomainError,
     Entity,
     EntityId,
+    ErrorCode,
     Query,
     ScalarDefinition,
     StorageQueryError,
     make_artifact,
 )
 
-from nu.psi.contracts.beta import entity_links, list_objects, store_stats
+from nu.psi.contracts.beta import (
+    FacetPatch,
+    bulk_patch,
+    entity_links,
+    list_objects,
+    store_stats,
+)
 from nu.psi.contracts.iota import ParseError, parse_filter
 from nu.psi.contracts.mu import CONTRACT_VERSION, KERNEL_CONTRACT_VERSION, __version__
 from nu.psi.product import Product
@@ -79,7 +85,7 @@ class HttpApi:
             return 401, {"error": "unauthorized"}
 
         if route == "/api/v1" or route.startswith("/api/v1/"):
-            return await self._handle_v1(method, parts[2:], path.partition("?")[2], headers)
+            return await self._handle_v1(method, parts[2:], path.partition("?")[2], body, headers)
 
         if route == "/health" and method == "GET":
             return 200, {
@@ -171,6 +177,7 @@ class HttpApi:
         method: str,
         parts: list[str],
         query_text: str,
+        body: bytes | None,
         headers: Mapping[str, str] | None,
     ) -> Response:
         """Версионированный API для клиентов (UI). Старые маршруты не трогаем."""
@@ -187,6 +194,10 @@ class HttpApi:
             return await self._v1_objects(params)
         if head == "objects" and len(parts) == 2 and method == "GET":
             return await self._v1_object(parts[1], headers)
+        if head == "objects" and len(parts) == 2 and method == "PUT":
+            return await self._v1_put_object(parts[1], body, headers)
+        if head == "patch" and len(parts) == 1 and method == "POST":
+            return await self._v1_patch(body)
         if head == "objects" and len(parts) == 3 and parts[2] == "links" and method == "GET":
             return await self._v1_links(parts[1], params)
         if head == "stats" and len(parts) == 1 and method == "GET":
@@ -233,11 +244,165 @@ class HttpApi:
         if entity is None:
             return 404, _v1_error("not_found", f"object {entity_id!r} not found")
         payload = entity.model_dump_json()
-        etag = '"' + hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32] + '"'
-        presented = (headers or {}).get("If-None-Match") or (headers or {}).get("if-none-match")
+        etag = _etag(entity)
+        presented = _header(headers, "If-None-Match")
         if presented == etag:
             return 304, {}, {"ETag": etag}
         return 200, {"entity": json.loads(payload)}, {"ETag": etag}
+
+    async def _v1_put_object(
+        self,
+        entity_id: str,
+        body: bytes | None,
+        headers: Mapping[str, str] | None,
+    ) -> Response:
+        """Записать объект; `If-Match` превращается в `expected_rev` (ADR-0021)."""
+        try:
+            payload = _json(body)
+        except ValueError as error:
+            return 400, _v1_error("invalid_body", str(error))
+        payload["id"] = entity_id
+        try:
+            entity = Entity.model_validate(payload)
+        except ValueError as error:
+            return 400, _v1_error("invalid_entity", str(error), entity_id=entity_id)
+
+        expected, failure = await self._if_match(entity_id, headers)
+        if failure is not None:
+            return failure
+
+        errors = await self.product.core.storage.upsert(entity, expected_rev=expected)
+        if errors:
+            if any(error.code is ErrorCode.CONFLICT for error in errors):
+                return await self._conflict(entity_id)
+            return 422, {"errors": [_dump(error) for error in errors]}
+        saved = await self.product.core.get(EntityId(entity_id))
+        if saved is None:  # pragma: no cover - запись прошла, объект есть
+            raise RuntimeError(f"object {entity_id!r} disappeared after write")
+        etag = _etag(saved)
+        return 200, {"id": str(saved.id), "rev": saved.rev}, {"ETag": etag}
+
+    async def _v1_patch(self, body: bytes | None) -> Response:
+        """Массовая правка фасетов: те же поля, что у `bulk_patch`."""
+        try:
+            payload = _json(body)
+        except ValueError as error:
+            return 400, _v1_error("invalid_body", str(error))
+
+        try:
+            patches = _patches(payload.get("ops"))
+        except ValueError as error:
+            return 400, _v1_error("invalid_ops", str(error))
+
+        try:
+            ids = await self._patch_targets(payload)
+        except ValueError as error:
+            return 400, _v1_error("invalid_target", str(error))
+        if ids is None:
+            return self._patch_route_error(payload)
+
+        expected_raw = payload.get("expected_revs") or {}
+        if not isinstance(expected_raw, dict):
+            return 400, _v1_error("invalid_expected_revs", "expected_revs must be an object")
+        expected: dict[str, int] = {}
+        for key, value in expected_raw.items():
+            if not isinstance(value, int):
+                return 400, _v1_error(
+                    "invalid_expected_revs", f"revision for {key!r} must be an integer"
+                )
+            expected[str(key)] = value
+
+        result = await bulk_patch(
+            self.product.core.storage,
+            ids,
+            patches,
+            expected_revs=expected or None,
+            force=bool(payload.get("force", False)),
+        )
+        return 200, {
+            "changed": [{"id": key, "rev": rev} for key, rev in result.changed],
+            "conflicts": list(result.conflicts),
+            "skipped": [{"id": key, "axis": axis} for key, axis in result.skipped],
+            "errors": [_dump(error) for error in result.errors],
+        }
+
+    def _patch_route_error(self, payload: dict[str, Any]) -> Response:
+        """`ids` и `filter` взаимоисключающие, и один из них обязателен."""
+        has_ids = payload.get("ids") is not None
+        has_filter = payload.get("filter") is not None
+        if has_ids and has_filter:
+            return 400, _v1_error("invalid_target", "use either ids or filter, not both")
+        return 400, _v1_error("invalid_target", "either ids or filter is required")
+
+    async def _patch_targets(self, payload: dict[str, Any]) -> list[EntityId] | None:
+        """Кого правим: список `id` или результат фильтра."""
+        has_ids = payload.get("ids") is not None
+        has_filter = payload.get("filter") is not None
+        if has_ids == has_filter:
+            return None
+        if has_ids:
+            raw_ids = payload["ids"]
+            if not isinstance(raw_ids, list) or not raw_ids:
+                raise ValueError("ids must be a non-empty list")
+            return [EntityId(str(item)) for item in raw_ids]
+        raw_filter = payload["filter"]
+        if not isinstance(raw_filter, list):
+            raise ValueError("filter must be a list of axis:op=value tokens")
+        filters = tuple(parse_filter(str(token)) for token in raw_filter)
+        schema = await self.product.core.schema()
+        for condition in filters:
+            if schema.axis(condition.axis) is None and schema.scalar(condition.axis) is None:
+                raise ValueError(f"axis {condition.axis!r} is not declared")
+        try:
+            result = await self.product.core.query(Query(all=filters))
+        except StorageQueryError as error:
+            raise ValueError(str(error)) from error
+        return [EntityId(item) for item in result.ids]
+
+    async def _if_match(
+        self,
+        entity_id: str,
+        headers: Mapping[str, str] | None,
+    ) -> tuple[int | None, Response | None]:
+        """`If-Match` → `expected_rev`. Второй элемент — готовый отказ."""
+        raw = _header(headers, "If-Match")
+        if raw is None:
+            return None, None
+        value = raw.strip()
+        if value == "*":
+            current = await self.product.core.get(EntityId(entity_id))
+            if current is None:
+                return None, (
+                    404,
+                    _v1_error("not_found", f"object {entity_id!r} not found", entity_id=entity_id),
+                )
+            return current.rev, None
+        rev = _parse_etag(value)
+        if rev is None:
+            return None, (
+                400,
+                _v1_error(
+                    "invalid_if_match",
+                    f'expected ETag like "r3" or *, got {value!r}',
+                    entity_id=entity_id,
+                ),
+            )
+        return rev, None
+
+    async def _conflict(self, entity_id: str) -> Response:
+        """409 с текущим состоянием: редактор показывает «моё/чужое» (ADR-0021)."""
+        current = await self.product.core.get(EntityId(entity_id))
+        body: dict[str, Any] = _v1_error(
+            "conflict",
+            "object was changed by someone else",
+            entity_id=entity_id,
+        )
+        if current is not None:
+            body["current"] = {
+                "etag": _etag(current),
+                "entity": json.loads(current.model_dump_json()),
+            }
+        return 409, body
 
     async def _v1_links(self, entity_id: str, params: dict[str, list[str]]) -> Response:
         include_deleted = params.get("include_deleted", ["0"])[0] in {"1", "true", "yes"}
@@ -388,6 +553,58 @@ class HttpApi:
         except RuntimeError as error:  # плагины бэкендов
             return 422, {"error": str(error)}
         return 200, json.loads(result.model_dump_json())
+
+
+#: ETag в v1 — ревизия объекта: `"r5"` (ADR-0021). Хеш тела не годится:
+#: `If-Match` обязан давать `expected_rev` без разбора документа.
+def _etag(entity: Entity) -> str:
+    return f'"r{entity.rev}"'
+
+
+def _parse_etag(value: str) -> int | None:
+    """`"r5"` / `W/"r5"` → 5; всё остальное → `None`."""
+    text = value.strip()
+    if text.startswith("W/"):
+        text = text[2:]
+    if len(text) < 4 or text[0] != '"' or text[-1] != '"' or text[1] != "r":
+        return None
+    try:
+        return int(text[2:-1])
+    except ValueError:
+        return None
+
+
+def _header(headers: Mapping[str, str] | None, name: str) -> str | None:
+    """Заголовок без учёта регистра: клиенты присылают по-разному."""
+    if not headers:
+        return None
+    wanted = name.lower()
+    for key, value in headers.items():
+        if key.lower() == wanted:
+            return value
+    return None
+
+
+def _patches(raw: Any) -> tuple[FacetPatch, ...]:
+    """Тело `ops` → операции `bulk_patch`."""
+    if not isinstance(raw, list) or not raw:
+        raise ValueError("ops must be a non-empty list")
+    patches: list[FacetPatch] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValueError("each op must be an object with axis, mode, values")
+        axis = item.get("axis")
+        mode = item.get("mode")
+        values = item.get("values") or []
+        if not isinstance(axis, str) or not axis:
+            raise ValueError("op.axis must be a non-empty string")
+        if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+            raise ValueError(f"op.values for {axis!r} must be a list of strings")
+        try:
+            patches.append(FacetPatch(axis=axis, mode=str(mode), values=tuple(values)))
+        except ValueError as error:
+            raise ValueError(str(error)) from error
+    return tuple(patches)
 
 
 def _v1_error(code: str, message: str, **context: Any) -> dict[str, Any]:

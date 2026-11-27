@@ -125,8 +125,10 @@ async def bulk_patch(
             continue
         patched, omitted = apply_patches(entity, patches, force=force)
         skipped.extend((key, axis) for axis in omitted)
-        if not patched.facets and not patched.scalars and not patched.artifacts:
-            pass
+        if patched == entity:
+            # Менять нечего: все операции пропущены. Ревизия не растёт —
+            # иначе «пропущено» выглядело бы как правка и ломало чужой If-Match.
+            continue
         expected = expected_revs.get(key) if expected_revs else entity.rev
         found = await storage.upsert(patched, expected_rev=expected)
         if not found:

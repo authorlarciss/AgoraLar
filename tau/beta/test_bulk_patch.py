@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 from axislar_core.contracts import (
     AxisDefinition,
@@ -10,6 +12,7 @@ from axislar_core.contracts import (
     Entity,
     EntityId,
     FacetOwner,
+    IStorageEngine,
     ReferenceValue,
     ScalarDefinition,
     build_core,
@@ -176,3 +179,26 @@ def test_reference_values_get_reference_type() -> None:
         str(value.target) for value in patched.facets["links"] if isinstance(value, ReferenceValue)
     ]
     assert targets == ["n2", "n3"]
+
+
+async def test_skipped_only_patch_does_not_bump_revision() -> None:
+    """Пропущенный фасет источника — не правка: ревизия не растёт."""
+    engine = cast(IStorageEngine, await storage())
+    entity = await engine.get(EntityId("n1"))
+    assert entity is not None
+    owned = entity.model_copy(update={"owners": {"tags": FacetOwner.SOURCE}})
+    assert await engine.upsert(owned) == []
+    before = await engine.get(EntityId("n1"))
+    assert before is not None
+
+    result = await bulk_patch(
+        engine,
+        [EntityId("n1")],
+        [FacetPatch(axis="tags", mode="set", values=("neo",))],
+    )
+
+    assert result.changed == ()
+    assert result.skipped == (("n1", "tags"),)
+    assert result.conflicts == ()
+    after = await engine.get(EntityId("n1"))
+    assert after is not None and after.rev == before.rev
