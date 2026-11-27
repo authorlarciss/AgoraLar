@@ -146,6 +146,16 @@ jobs:
 
       # PyPI выдаёт краткоживущий пропуск по OIDC для каждого проекта,
       # поэтому продукт и каждый плагин публикуются отдельными вызовами.
+      # PEP 740: uv uploads attestations, but does not create them.
+      # Sidecars (.publish.attestation) подписываются через Sigstore и OIDC
+      # этого job, дальше `uv publish` отправляет их вместе с файлами.
+      - name: Sign distributions (PEP 740)
+        run: |
+          set -euo pipefail
+          uv run --with pypi-attestations --no-project \
+            python -m pypi_attestations sign dist/
+          ls -1 dist | grep -c attestation
+
       - name: Publish to PyPI
         run: |
           set -euo pipefail

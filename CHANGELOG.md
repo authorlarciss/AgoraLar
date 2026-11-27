@@ -9,6 +9,15 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.20.2] - 2026-11-27
+
+### Changed
+
+- **PEP 740 / SLSA provenance**: job `publish` подписывает дистрибутивы
+  перед загрузкой (`python -m pypi_attestations sign dist/`). uv
+  аттестации не создаёт — он загружает готовые sidecar-файлы; без
+  отдельного шага подписи PyPI отдаёт `No provenance available`.
+
 ## [0.20.1] - 2026-11-27
 
 ### Added
