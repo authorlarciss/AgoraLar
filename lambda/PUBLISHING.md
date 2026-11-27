@@ -161,6 +161,40 @@ CI соберёт артефакты, прикрепит их к релизу и
 Лимит «4 новых проекта в 24 часа» действует и здесь: он про создание
 проектов, а не про способ аутентификации.
 
+## 4a. Provenance и аттестации (PEP 740)
+
+С 0.20.4 job `publish` подписывает дистрибутивы и загружает аттестации:
+
+```bash
+uv run --with pypi-attestations --no-project \
+  python -m pypi_attestations sign dist/*.whl dist/*.tar.gz
+uv publish --trusted-publishing always dist/<имя>-<версия>*
+```
+
+Две детали, на которых легко потерять аттестации:
+
+- `sign` принимает **файлы**, а не каталог (`sign dist/` → «dist is not a file»);
+- `uv publish` группирует sidecar с дистрибутивом только когда получает
+  **шаблон** (`dist/имя-версия*`), а не отдельный файл. С отдельным файлом
+  всё загружается, но без аттестации, и молча.
+
+Проверка:
+
+```bash
+curl -fsS -H 'Accept: application/vnd.pypi.integrity.v1+json' \
+  https://pypi.org/integrity/agoralar/0.20.4/agoralar-0.20.4-py3-none-any.whl/provenance
+```
+
+Ответ содержит `publisher` (GitHub, репозиторий, workflow, environment) и
+`predicateType`.
+
+Что это даёт и чего не даёт: сейчас это **publish-аттестация**
+(`https://docs.pypi.org/attestations/publish/v1`) — PyPI подтверждает, что
+файл загружен именно этим workflow из этого репозитория. Это не SLSA build
+provenance (`https://slsa.dev/provenance/v1`) и не «SLSA L3»: L3 требует
+изолированного билдера. Для build provenance нужен отдельный шаг
+(`astral-sh/attest-action`), который аттестует сборку, а не загрузку.
+
 ## 5. Ограничения и подводные камни
 
 - **Имена занимаются навсегда.** `agoralar`, `axislar-core` и имена плагинов

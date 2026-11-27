@@ -9,6 +9,15 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+
+- **PEP 740 publish attestation** работает: PyPI подтверждает, что файл
+  загружен workflow `ci.yml` репозитория `authorlarciss/AgoraLar`
+  (environment `release`). Проверка — `/integrity/<проект>/<версия>/<файл>/provenance`.
+  В `PUBLISHING.md` описаны две грабли: `sign` берёт файлы, а не каталог;
+  `uv publish` цепляет sidecar только при публикации по шаблону.
+  SLSA build provenance — отдельный шаг, пока не сделано (см. план).
+
 ## [0.20.4] - 2026-11-27
 
 ### Fixed

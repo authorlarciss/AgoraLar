@@ -145,6 +145,10 @@ cookbook) разобраны отдельно — `lambda/ROADMAP.md`, там ж
     (продуктовый контракт) и решения по потоковому доступу к артефактам.
 18. **Cookbook** (ROADMAP §6): `docs/recipes/*.md` — три первых рецепта
     (видеоархив, Obsidian, «я удалил файл»).
+18a. **SLSA build provenance.** Publish-аттестация (PEP 740) работает;
+     для `https://slsa.dev/provenance/v1` нужен шаг `astral-sh/attest-action`
+     в job `dist` и проверка на теге. *Готово, когда* Integrity API
+     отдаёт два `predicateType`, включая slsa.dev.
 19. **`sqlite`-стор как самостоятельный бэкенд.** Готово: инкрементальная
     запись, `facet_index`/`ref_index`, запросы и обход ссылок в SQL,
     никакой полной загрузки, миграция формата автоматом, контрактные
