@@ -50,14 +50,21 @@ from nu.gamma._internal.export import (
 )
 from nu.psi.contracts.alpha import BUILTIN_STORE, Config
 from nu.psi.contracts.beta import (
+    FacetPatch,
+    Journal,
+    JournalError,
     PluginRegistry,
     SyncState,
     UnknownPluginError,
+    bulk_patch,
+    journal_path_for,
     load_state,
+    make_entry,
     record_sync,
     save_state,
     state_path_for,
     sync_now,
+    undo_last,
 )
 from nu.psi.contracts.iota import (
     DEFAULT_CONFIG_NAME,
@@ -563,6 +570,95 @@ def use_store(args: argparse.Namespace, config: Config) -> int:
     return 0
 
 
+def journal_for(config: Config) -> Journal:
+    """Журнал правок рядом с данными хранилища."""
+    base = config.data.parent if config.data is not None else Path.cwd()
+    return Journal(journal_path_for(base))
+
+
+def build_patches(args: argparse.Namespace) -> list[FacetPatch]:
+    """Операции из аргументов `patch`: set/add/unset."""
+    patches: list[FacetPatch] = []
+    for token in args.set:
+        axis, _, raw = token.partition("=")
+        patches.append(FacetPatch(axis=axis, mode="set", values=tuple(_split_values(raw))))
+    for token in args.add:
+        axis, _, raw = token.partition("=")
+        patches.append(FacetPatch(axis=axis, mode="add", values=tuple(_split_values(raw))))
+    for axis in args.unset:
+        patches.append(FacetPatch(axis=axis, mode="unset"))
+    if not patches:
+        raise CliError("нужен хотя бы один из --set, --add, --unset")
+    return patches
+
+
+def _split_values(raw: str) -> list[str]:
+    values = [piece.strip() for piece in raw.split(",") if piece.strip()]
+    if not values:
+        raise CliError("операция требует хотя бы одно значение")
+    return values
+
+
+async def run_patch(args: argparse.Namespace, product: Product, config: Config) -> int:
+    """Массовая правка: dry-run по умолчанию, журнал — только на `--apply`."""
+    patches = build_patches(args)
+    query = Query(all=tuple(parse_filter(token) for token in args.filter))
+    result = await product.core.query(query)
+    if not result.ids:
+        print("ничего не найдено")
+        return 0
+    print(f"объектов под фильтром: {result.total}")
+
+    if not args.apply:
+        print("dry-run: ничего не записано (--apply, чтобы применить)")
+        return 0
+
+    journal = journal_for(config)
+    before = [await product.core.get(entity_id) for entity_id in result.ids]
+    outcome = await bulk_patch(product.core.storage, result.ids, patches, force=args.force)
+    entries = [
+        make_entry("patch", old, await product.core.get(entity_id))
+        for entity_id, old in zip(result.ids, before, strict=True)
+        if old is not None
+    ]
+    journal.append(entries)
+    print(f"изменено: {len(outcome.changed)}, конфликтов: {len(outcome.conflicts)}")
+    if outcome.skipped:
+        axes = sorted({axis for _, axis in outcome.skipped})
+        print(
+            "пропущено (фасет принадлежит источнику): "
+            + ", ".join(axes)
+            + " · перезаписать можно с --force"
+        )
+    for conflict in outcome.conflicts[:10]:
+        print(f"  конфликт: {conflict}")
+    if outcome.errors and not outcome.changed:
+        print_errors(list(outcome.errors))
+        return 2
+    return 0
+
+
+async def run_undo(args: argparse.Namespace, product: Product, config: Config) -> int:
+    """Откат последних журнальных правок."""
+    journal = journal_for(config)
+    done = 0
+    for _ in range(max(1, args.steps)):
+        try:
+            entry = await undo_last(product.core.storage, journal)
+        except JournalError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 2
+        if entry is None:
+            break
+        done += 1
+        print(f"отменено: {entry.kind} {entry.entity_id}")
+    if not done:
+        print("журнал пуст — откатывать нечего")
+        return 0
+    print(f"откачено записей: {done}")
+    return 0
+
+
 async def run_init(args: argparse.Namespace) -> int:
     """Создать конфиг и схему из шаблона (ROADMAP §1).
 
@@ -673,10 +769,13 @@ async def run(args: argparse.Namespace) -> int:
 
     if args.command == "put":
         entity = await build_entity(await product.core.schema(), args, product)
+        before = await product.core.get(entity.id)
         errors = await product.core.upsert(entity)
         if errors:
             print_errors(errors)
             return 2
+        after = await product.core.get(entity.id)
+        journal_for(config).append([make_entry("put", before, after)])
         print(f"stored {entity.id}")
         return 0
 
@@ -691,6 +790,12 @@ async def run(args: argparse.Namespace) -> int:
     if args.command == "query":
         print(render_result(await product.core.query(build_query(args)), args.json))
         return 0
+
+    if args.command == "patch":
+        return await run_patch(args, product, config)
+
+    if args.command == "undo":
+        return await run_undo(args, product, config)
 
     if args.command == "export-symlinks":
         group_by = [piece.strip() for piece in args.group_by.split(",") if piece.strip()]
@@ -844,6 +949,23 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--force", action="store_true", help="писать в непустой каталог")
     export.add_argument("--apply", action="store_true", help="создать ссылки (иначе dry-run)")
     export.set_defaults(command="export-symlinks")
+
+    patch = subparsers.add_parser("patch", help="массовая правка объектов по фильтру")
+    patch.add_argument("--filter", action="append", default=[], help="axis:op=values")
+    patch.add_argument("--set", action="append", default=[], metavar="AXIS=V1,V2")
+    patch.add_argument("--add", action="append", default=[], metavar="AXIS=V1,V2")
+    patch.add_argument("--unset", action="append", default=[], metavar="AXIS")
+    patch.add_argument("--apply", action="store_true", help="записать (иначе dry-run)")
+    patch.add_argument(
+        "--force",
+        action="store_true",
+        help="перезаписать фасеты источника и забрать владение (owners=user)",
+    )
+    patch.set_defaults(command="patch")
+
+    undo = subparsers.add_parser("undo", help="откатить последнюю правку из журнала")
+    undo.add_argument("--steps", type=int, default=1, help="сколько записей откатить")
+    undo.set_defaults(command="undo")
 
     visualize = subparsers.add_parser("visualize", help="автономный HTML-отчёт о хранилище")
     visualize.add_argument(

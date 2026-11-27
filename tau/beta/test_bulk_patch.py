@@ -52,7 +52,10 @@ def test_apply_patches_adds_and_dedupes() -> None:
             "facets": {"tags": [{"kind": "categorical", "value": "noir"}]},
         }
     )
-    patched = apply_patches(entity, [FacetPatch(axis="tags", mode="add", values=("noir", "epic"))])
+    patched, skipped = apply_patches(
+        entity, [FacetPatch(axis="tags", mode="add", values=("noir", "epic"))]
+    )
+    assert skipped == ()
     values = [
         value.value for value in patched.facets["tags"] if isinstance(value, CategoricalValue)
     ]
@@ -68,9 +71,18 @@ def test_apply_patches_keeps_source_owned_facets() -> None:
             "owners": {"tags": "source"},
         }
     )
-    patched = apply_patches(entity, [FacetPatch(axis="tags", mode="set", values=("manual",))])
+    patched, skipped = apply_patches(
+        entity, [FacetPatch(axis="tags", mode="set", values=("manual",))]
+    )
+    assert skipped == ("tags",), "пропуск сообщается, а не молчит"
     assert patched.facets["tags"] == entity.facets["tags"], "фасет источника не перезаписывается"
     assert patched.owners["tags"] is FacetOwner.SOURCE
+
+    forced, skipped_forced = apply_patches(
+        entity, [FacetPatch(axis="tags", mode="set", values=("manual",))], force=True
+    )
+    assert skipped_forced == ()
+    assert forced.owners["tags"] is FacetOwner.USER, "владение переходит человеку"
 
 
 async def test_bulk_patch_sets_facet_for_many_objects() -> None:
@@ -159,7 +171,7 @@ def test_reference_values_get_reference_type() -> None:
             "owners": {"links": "user"},
         }
     )
-    patched = apply_patches(entity, [FacetPatch(axis="links", mode="add", values=("n3",))])
+    patched, _ = apply_patches(entity, [FacetPatch(axis="links", mode="add", values=("n3",))])
     targets = [
         str(value.target) for value in patched.facets["links"] if isinstance(value, ReferenceValue)
     ]

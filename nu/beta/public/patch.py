@@ -48,26 +48,33 @@ class FacetPatch:
 
 @dataclass(frozen=True, slots=True)
 class BulkPatchResult:
-    """Итог: какие объекты изменены и с какими ревизиями."""
+    """Итог: какие объекты изменены, где конфликт и что пропущено."""
 
     changed: tuple[tuple[str, int], ...] = ()
     conflicts: tuple[str, ...] = ()
+    skipped: tuple[tuple[str, str], ...] = ()
     errors: tuple[DomainError, ...] = ()
 
 
-def apply_patches(entity: Entity, patches: Sequence[FacetPatch]) -> Entity:
-    """Применить операции к объекту, не трогая чужие владения.
+def apply_patches(
+    entity: Entity, patches: Sequence[FacetPatch], *, force: bool = False
+) -> tuple[Entity, tuple[str, ...]]:
+    """Применить операции к объекту; вернуть объект и список пропущенных осей.
 
-    Фасет, которым владеет источник (`owners=source`), не перезаписывается
-    молча: он вернётся из `sync` и «отменит» правку. Такие оси пропускаются,
-    чтобы результат был предсказуемым.
+    Фасет источника (`owners=source`) по умолчанию не трогаем: `sync` вернёт
+    своё значение и правка исчезнет. С `force` правка применяется, и владение
+    переходит человеку (`owners=user`) — тогда синхронизация эту ось не
+    перезапишет (ADR-0016).
     """
     facets = dict(entity.facets)
     owners = dict(entity.owners)
+    skipped: list[str] = []
     for patch in patches:
-        if owners.get(patch.axis) is FacetOwner.SOURCE:
-            # Фасет источника: sync вернёт своё значение, правка бессмысленна.
+        if owners.get(patch.axis) is FacetOwner.SOURCE and not force:
+            skipped.append(patch.axis)
             continue
+        if owners.get(patch.axis) is FacetOwner.SOURCE and force:
+            owners[patch.axis] = FacetOwner.USER
         if patch.mode == "unset":
             facets.pop(patch.axis, None)
             owners.pop(patch.axis, None)
@@ -81,7 +88,9 @@ def apply_patches(entity: Entity, patches: Sequence[FacetPatch]) -> Entity:
                 if value not in current:
                     current.append(value)
             facets[patch.axis] = tuple(current)
-    return entity.model_copy(update={"facets": facets, "owners": owners})
+        if patch.axis not in facets:
+            owners.pop(patch.axis, None)
+    return entity.model_copy(update={"facets": facets, "owners": owners}), tuple(skipped)
 
 
 async def bulk_patch(
@@ -90,6 +99,7 @@ async def bulk_patch(
     patches: Sequence[FacetPatch],
     *,
     expected_revs: Mapping[str, int] | None = None,
+    force: bool = False,
 ) -> BulkPatchResult:
     """Применить операции к набору объектов.
 
@@ -99,6 +109,7 @@ async def bulk_patch(
     """
     changed: list[tuple[str, int]] = []
     conflicts: list[str] = []
+    skipped: list[tuple[str, str]] = []
     errors: list[DomainError] = []
     for entity_id in ids:
         key = str(entity_id)
@@ -112,7 +123,10 @@ async def bulk_patch(
                 )
             )
             continue
-        patched = apply_patches(entity, patches)
+        patched, omitted = apply_patches(entity, patches, force=force)
+        skipped.extend((key, axis) for axis in omitted)
+        if not patched.facets and not patched.scalars and not patched.artifacts:
+            pass
         expected = expected_revs.get(key) if expected_revs else entity.rev
         found = await storage.upsert(patched, expected_rev=expected)
         if not found:
@@ -124,7 +138,12 @@ async def bulk_patch(
         if any(error.code is ErrorCode.CONFLICT for error in found):
             conflicts.append(key)
         errors.extend(found)
-    return BulkPatchResult(changed=tuple(changed), conflicts=tuple(conflicts), errors=tuple(errors))
+    return BulkPatchResult(
+        changed=tuple(changed),
+        conflicts=tuple(conflicts),
+        skipped=tuple(skipped),
+        errors=tuple(errors),
+    )
 
 
 def _value(axis: str, raw: str, current: tuple[FacetValue, ...]) -> FacetValue:

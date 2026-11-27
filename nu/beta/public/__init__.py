@@ -1,6 +1,13 @@
 """Публичный API модуля beta продукта: реестр плагинов и состояние sync."""
 
 from nu.beta.public.analyzers import IAnalyzer as IAnalyzer
+from nu.beta.public.journal import DEFAULT_LIMIT as JOURNAL_LIMIT
+from nu.beta.public.journal import Journal as Journal
+from nu.beta.public.journal import JournalEntry as JournalEntry
+from nu.beta.public.journal import JournalError as JournalError
+from nu.beta.public.journal import journal_path_for as journal_path_for
+from nu.beta.public.journal import make_entry as make_entry
+from nu.beta.public.journal import undo_last as undo_last
 from nu.beta.public.objects import TITLE_SCALAR as TITLE_SCALAR
 from nu.beta.public.objects import LinkRow as LinkRow
 from nu.beta.public.objects import ObjectList as ObjectList
@@ -33,6 +40,13 @@ from nu.beta.public.sync_state import state_path_for as state_path_for
 __all__ = [
     "AxisStats",
     "BulkPatchResult",
+    "JOURNAL_LIMIT",
+    "Journal",
+    "JournalEntry",
+    "JournalError",
+    "journal_path_for",
+    "make_entry",
+    "undo_last",
     "FacetPatch",
     "apply_patches",
     "bulk_patch",
