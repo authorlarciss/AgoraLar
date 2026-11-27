@@ -270,3 +270,134 @@ async def test_traversal_on_missing_file_creates_nothing(tmp_path: Path) -> None
 async def test_passes_reference_contract(tmp_path: Path) -> None:
     """Семантика обхода ссылок проверяется контрактным набором ядра (ADR-0021)."""
     await run_reference_index_contract(lambda schema: SqliteStore(tmp_path / "ref.db", schema))
+
+
+async def test_matches_reference_engine_on_random_queries(tmp_path: Path) -> None:
+    """Дифференциальный тест: SQL-бэкенд против эталонного движка.
+
+    Семантика запросов в SQL (особенно разреженность, мультизначность и
+    `none_of` на отсутствующем значении) — самое опасное место бэкенда:
+    ошибка здесь тихая. Поэтому случайные данные и случайные запросы
+    сравниваются с `MemoryStorage` из ядра по `ids` и `total`.
+    """
+    import random
+
+    from axislar_core.contracts import (
+        Filter,
+        Operator,
+        Query,
+        ScalarDefinition,
+        build_core,
+    )
+
+    rng = random.Random(20261127)
+    schema = StorageSchema(
+        axes=(
+            AxisDefinition(name="theme", kind=AxisKind.CATEGORICAL, multi=True),
+            AxisDefinition(name="year", kind=AxisKind.MEASURABLE),
+            AxisDefinition(name="links", kind=AxisKind.REFERENCE, multi=True, target="note"),
+        ),
+        scalars=(ScalarDefinition(name="title"),),
+    )
+    themes = ("noir", "cyberpunk", "epic", "fantasy", "doc")
+
+    entities: list[Entity] = []
+    for index in range(120):
+        facets: dict[str, object] = {}
+        if rng.random() < 0.8:
+            chosen = rng.sample(themes, k=rng.randint(1, 3))
+            facets["theme"] = tuple({"kind": "categorical", "value": value} for value in chosen)
+        if rng.random() < 0.6:
+            facets["year"] = ({"kind": "measurable", "value": float(rng.randint(1990, 2024))},)
+        if rng.random() < 0.3:
+            target = f"e-{rng.randrange(120):03d}"
+            facets["links"] = ({"kind": "reference", "target": target},)
+        scalars = {"title": f"title-{rng.randrange(5)}"} if rng.random() < 0.5 else {}
+        entity = Entity.model_validate(
+            {"id": f"e-{index:03d}", "kind": "note", "facets": facets, "scalars": scalars}
+        )
+        if rng.random() < 0.1:
+            entity = entity.model_copy(update={"deleted_at": datetime(2026, 1, 1, tzinfo=UTC)})
+        entities.append(entity)
+
+    store = SqliteStore(tmp_path / "diff.sqlite3", schema)
+    reference = build_core().storage
+    for axis in schema.axes:
+        await reference.add_axis(axis)
+    for scalar in schema.scalars:
+        await reference.add_scalar(scalar)
+    assert await store.bulk_upsert(entities) == []
+    assert await reference.bulk_upsert(entities) == []
+
+    categorical_ops = (
+        Operator.CONTAINS,
+        Operator.ANY_OF,
+        Operator.NONE_OF,
+        Operator.EXISTS,
+        Operator.NOT_EXISTS,
+    )
+    numeric_ops = (
+        Operator.EQ,
+        Operator.GT,
+        Operator.LT,
+        Operator.GTE,
+        Operator.LTE,
+        Operator.BETWEEN,
+    )
+
+    non_empty = 0
+    for _ in range(80):
+        conditions: list[Filter] = []
+        for _ in range(rng.randint(1, 3)):
+            kind = rng.randrange(4)
+            if kind == 0:
+                op = rng.choice(categorical_ops)
+                values: tuple[object, ...] = (
+                    () if op in (Operator.EXISTS, Operator.NOT_EXISTS) else (rng.choice(themes),)
+                )
+                conditions.append(
+                    Filter.model_validate({"axis": "theme", "op": op.value, "values": values})
+                )
+            elif kind == 1:
+                op = rng.choice(numeric_ops)
+                if op is Operator.BETWEEN:
+                    low, high = sorted((rng.randint(1990, 2024), rng.randint(1990, 2024)))
+                    values = (float(low), float(high))
+                else:
+                    values = (float(rng.randint(1990, 2024)),)
+                conditions.append(
+                    Filter.model_validate({"axis": "year", "op": op.value, "values": values})
+                )
+            elif kind == 2:
+                op = rng.choice(
+                    (Operator.CONTAINS, Operator.ANY_OF, Operator.NONE_OF, Operator.EXISTS)
+                )
+                values = () if op is Operator.EXISTS else (f"e-{rng.randrange(120):03d}",)
+                conditions.append(
+                    Filter.model_validate({"axis": "links", "op": op.value, "values": values})
+                )
+            else:
+                conditions.append(
+                    Filter.model_validate(
+                        {
+                            "axis": "title",
+                            "op": Operator.SCALAR_EQ.value,
+                            "values": (f"title-{rng.randrange(5)}",),
+                        }
+                    )
+                )
+
+        query = Query(
+            all=tuple(conditions),
+            limit=rng.choice((None, 1, 5, 20)),
+            offset=rng.choice((0, 0, 3)),
+        )
+        expected = await reference.query(query)
+        actual = await store.query(query)
+        assert (actual.ids, actual.total) == (expected.ids, expected.total), (
+            f"query mismatch for {query}: {actual} != {expected}"
+        )
+        if expected.ids:
+            non_empty += 1
+
+    assert non_empty > 30, f"тест бесполезен: непустых запросов всего {non_empty}"

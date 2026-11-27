@@ -49,7 +49,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-analyzer-text"
-version = "0.1.2"
+version = "0.1.3"
 source = { editable = "plugins/analyzer_text" }
 
 [package.metadata]
@@ -63,7 +63,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-source-filesystem"
-version = "0.3.2"
+version = "0.3.3"
 source = { editable = "plugins/source_filesystem" }
 dependencies = [
     { name = "axislar-core" },
@@ -81,7 +81,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-source-http"
-version = "0.2.2"
+version = "0.2.3"
 source = { editable = "plugins/source_http" }
 dependencies = [
     { name = "axislar-core" },
@@ -99,7 +99,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-source-sql"
-version = "0.2.2"
+version = "0.2.3"
 source = { editable = "plugins/source_sql" }
 dependencies = [
     { name = "axislar-core" },
@@ -117,7 +117,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-store-json"
-version = "0.5.2"
+version = "0.5.3"
 source = { editable = "plugins/store_json" }
 dependencies = [
     { name = "axislar-core" },
@@ -135,7 +135,7 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-store-sqlite"
-version = "0.4.2"
+version = "0.4.3"
 source = { editable = "plugins/store_sqlite" }
 dependencies = [
     { name = "axislar-core" },

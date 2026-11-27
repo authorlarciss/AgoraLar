@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agoralar-store-sqlite"
-version = "0.4.2"
+version = "0.4.3"
 description = "SQLite-хранилище для AxisLar (плагин AgoraLar)"
 readme = "README.md"
 license = "MIT"
