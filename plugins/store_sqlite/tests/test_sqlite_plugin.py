@@ -10,7 +10,12 @@ import pytest
 from axislar_core.contracts import (
     AxisDefinition,
     AxisKind,
+    Capability,
     Entity,
+    EntityId,
+    IReferenceIndex,
+    ReferenceLink,
+    ReferenceValue,
     run_storage_contract,
 )
 
@@ -107,3 +112,29 @@ async def test_artifact_bytes_are_binary_in_sqlite(tmp_path: Path) -> None:
     with closing(sqlite3.connect(path)) as connection, connection:
         row = connection.execute("SELECT data FROM artifacts").fetchone()
     assert row is not None and bytes(row[0]) == artifact.data
+
+
+async def test_reference_traversal_survives_reopen(tmp_path: Path) -> None:
+    """Обратный индекс ядра виден через стор и живёт после переоткрытия."""
+    engine = store(tmp_path)
+    await engine.add_axis(
+        AxisDefinition(name="links", kind=AxisKind.REFERENCE, multi=True, target="note")
+    )
+    await engine.bulk_upsert(
+        [
+            Entity(
+                id=EntityId("a"),
+                kind="note",
+                facets={"links": (ReferenceValue(target=EntityId("b")),)},
+            ),
+            Entity(id=EntityId("b"), kind="note"),
+        ]
+    )
+
+    assert isinstance(engine, IReferenceIndex)
+    assert Capability.TRAVERSE_REFERENCES in engine.capabilities()
+    expected = (ReferenceLink(axis="links", entity_id=EntityId("a")),)
+    assert await engine.references_to(EntityId("b")) == expected
+
+    reopened = store(tmp_path)
+    assert await reopened.references_to(EntityId("b")) == expected

@@ -26,9 +26,11 @@ from axislar_core.contracts import (
     DomainError,
     Entity,
     EntityId,
+    IReferenceIndex,
     IStorageEngine,
     Query,
     QueryResult,
+    ReferenceLink,
     ScalarDefinition,
     StorageSchema,
     build_core,
@@ -56,7 +58,7 @@ _ARTIFACTS_TABLE = (
 )
 
 
-class SqliteStore(IStorageEngine):
+class SqliteStore(IStorageEngine, IReferenceIndex):
     """Хранилище в SQLite-файле: ленивое открытие, запись в транзакции."""
 
     def __init__(self, path: Path | str, schema: StorageSchema | None = None) -> None:
@@ -230,6 +232,25 @@ class SqliteStore(IStorageEngine):
         if not errors:
             await self._flush()
         return errors
+
+    async def references_to(
+        self,
+        entity_id: EntityId,
+        axes: Sequence[str] | None = None,
+        *,
+        include_deleted: bool = False,
+    ) -> tuple[ReferenceLink, ...]:
+        """Входящие ссылки: обход делегируется обратному индексу ядра (ADR-0021).
+
+        Стор не ведёт второго индекса: записи и чтения идут через эталонный
+        движок, поэтому «кто на меня ссылается» — это его индекс, а не
+        копия в файле. SQL-пушдаун обхода появится вместе с пушдауном
+        запросов (отдельный ADR).
+        """
+        engine = await self._store()
+        if not isinstance(engine, IReferenceIndex):  # pragma: no cover - ядро умеет всегда
+            return ()
+        return await engine.references_to(entity_id, axes, include_deleted=include_deleted)
 
     def capabilities(self) -> frozenset[Capability]:
         return build_core().storage.capabilities()

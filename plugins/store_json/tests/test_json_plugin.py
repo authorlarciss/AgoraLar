@@ -9,8 +9,12 @@ import pytest
 from axislar_core.contracts import (
     AxisDefinition,
     AxisKind,
+    Capability,
     Entity,
     EntityId,
+    IReferenceIndex,
+    ReferenceLink,
+    ReferenceValue,
     run_storage_contract,
 )
 
@@ -132,3 +136,29 @@ async def test_version_one_with_artifacts_is_rejected(tmp_path: Path) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(JsonStoreError, match="version 1 with artifacts"):
         await JsonStore(path).count()
+
+
+async def test_reference_traversal_survives_reopen(tmp_path: Path) -> None:
+    """Обратный индекс ядра виден через стор и живёт после переоткрытия."""
+    engine = store(tmp_path)
+    await engine.add_axis(
+        AxisDefinition(name="links", kind=AxisKind.REFERENCE, multi=True, target="note")
+    )
+    await engine.bulk_upsert(
+        [
+            Entity(
+                id=EntityId("a"),
+                kind="note",
+                facets={"links": (ReferenceValue(target=EntityId("b")),)},
+            ),
+            Entity(id=EntityId("b"), kind="note"),
+        ]
+    )
+
+    assert isinstance(engine, IReferenceIndex)
+    assert Capability.TRAVERSE_REFERENCES in engine.capabilities()
+    expected = (ReferenceLink(axis="links", entity_id=EntityId("a")),)
+    assert await engine.references_to(EntityId("b")) == expected
+
+    reopened = store(tmp_path)
+    assert await reopened.references_to(EntityId("b")) == expected

@@ -3,13 +3,13 @@
 Нормативных документов по модели здесь нет: модель описана в ядре
 (`AxisLar/lambda/DOMAIN.md`). Здесь — про оболочку.
 
-## 0. Статус (2025-11-25)
+## 0. Статус (2026-11-27)
 
-**Текущая версия — 0.14.2** на ядре `axislar-core` 0.10.1 (contract 5).
+**Текущая версия — 0.15.0** на ядре `axislar-core` 0.11.0 (contract 5).
 Выполнено: P0–P5 и сверх плана — HTTP, история прогонов, периодический
-`watch`, провенанс и reuse производных фактов. Плагины: `json`, `sqlite`
-(0.5.0), `filesystem` (0.3.0), `sql` (0.2.0), `http` (0.2.0), анализатор
-`text` (0.1.0) — все `requires_contract >=5,<6`.
+`watch`, провенанс и reuse производных фактов. Плагины: `json` (0.5.2),
+`sqlite` (0.4.2), `filesystem` (0.3.2), `sql` (0.2.2), `http` (0.2.2),
+анализатор `text` (0.1.2) — все `requires_contract >=5,<6`.
 
 В 0.10.0 добавлено: параметры источника из `[plugins.<имя>]` и `--option`
 (ADR-0015) и плагин-источник `sql` (sqlite, только чтение; `NULL` = отсутствие
@@ -38,6 +38,7 @@ CLI `artifact put/get/ls/rm`, HTTP `/artifacts`, бэкенды `json`/`sqlite`
 | Конфиг `agoralar.toml` + история прогонов `.agoralar/sync.json` | `nu/iota`, `nu/beta/public/sync_state.py` |
 | Провенанс фасетов и reuse по `content_hash` | через ядро 0.7/0.8 |
 | Артефакты: CLI `artifact ...`, HTTP `/artifacts`, `put --artifact role=hash` | поверх ядра 0.9.x (ADR-0019 ядра) |
+| Обратные ссылки: `references_to` в `json`/`sqlite` сторах (порт `IReferenceIndex`) | ядро 0.11 (ADR-0021 ядра) |
 | Анализаторы: `agoralar analyze`, плагин `text`, провенанс в `derived_by` | `nu/beta/public/analyzers.py`, `plugins/analyzer_text` (ADR-0018) |
 
 ## 2. Не цели
