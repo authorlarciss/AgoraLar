@@ -245,14 +245,14 @@ wheels = [
 
 [[package]]
 name = "axislar-core"
-version = "0.14.1"
+version = "0.14.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/30/58/f9afe59f50f1012fc6a4231c084d0c196e47edcf8c585e7be7b1e1b352ff/axislar_core-0.14.1.tar.gz", hash = "sha256:68c2e57c1812fa5e2aed2198b8c966052fedf7be128dce10766e35a763d8b833", size = 54378, upload-time = "2026-11-27T19:33:43.091Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/6a/bec2cafbe62bf529b7049b0b8c614ad56ee92cca05c2588058b8a2e08a62/axislar_core-0.14.2.tar.gz", hash = "sha256:3a8d81812ef872563c05a1fa10f9acb5bf3e2f8d859bf0223401b4aea355863d", size = 54549, upload-time = "2026-11-27T19:42:38.784Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cd/59/73af522e8e940d169504ac9de9a480f6f0392928fd1a041501c97f20dd1a/axislar_core-0.14.1-py3-none-any.whl", hash = "sha256:03084d509dbb36f70cb70b2bc49b7860d122734da3b3a784d6ecad72496ff85b", size = 71444, upload-time = "2026-11-27T19:33:40.967Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/a0/0d48db61410b39bfd9ec52b92663ce963ebc3d7e058043076c2c8da1832e/axislar_core-0.14.2-py3-none-any.whl", hash = "sha256:355261bdd981f89ed61fb7ecceb2cc0afd5aced84634a80b234eab9ac88f0a87", size = 71595, upload-time = "2026-11-27T19:42:37.268Z" },
 ]
 
 [[package]]
