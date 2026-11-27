@@ -152,7 +152,7 @@ uid, либо запускать с `--user $(id -u):$(id -g)`. TLS, лимит�
 # колеса: релиз AgoraLar содержит продукт и все плагины,
 # ядро берётся из релиза AxisLar
 mkdir -p wheels/axislar wheels/agoralar
-gh release download v0.11.0 -R authorlarciss/AxisLar -p '*.whl' --dir wheels/axislar
+gh release download v0.12.0 -R authorlarciss/AxisLar -p '*.whl' --dir wheels/axislar
 gh release download v0.15.0 -R authorlarciss/AgoraLar -p '*.whl' --dir wheels/agoralar
 
 uv venv .venv
@@ -211,7 +211,7 @@ MIT — см. [LICENSE](LICENSE).
 
 ## Статус
 
-`0.15.0`: MIT, честные зависимости, ядро 0.11.0 (обратные ссылки — `references_to` в сторах); реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
+`0.15.0`: MIT, честные зависимости, ядро 0.12.0 (обратные ссылки — `references_to` в сторах); реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
 HTTP с bearer-токеном и образом в `Dockerfile`, анализатор текста,
 источники `filesystem`, `sql` и `http`, CLI (`sync`, `watch`, `serve` — HTTP), конфиг `agoralar.toml`,
 история прогонов, провенанс и reuse производных фактов по `content_hash`,

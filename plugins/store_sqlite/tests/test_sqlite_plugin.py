@@ -18,6 +18,7 @@ from axislar_core.contracts import (
     ReferenceLink,
     ReferenceValue,
     StorageSchema,
+    run_reference_index_contract,
     run_storage_contract,
 )
 
@@ -264,3 +265,8 @@ async def test_traversal_on_missing_file_creates_nothing(tmp_path: Path) -> None
     engine = store(tmp_path)
     assert await engine.references_to(EntityId("nobody")) == ()
     assert not (tmp_path / "vault.sqlite3").exists(), "чтение не должно создавать файл"
+
+
+async def test_passes_reference_contract(tmp_path: Path) -> None:
+    """Семантика обхода ссылок проверяется контрактным набором ядра (ADR-0021)."""
+    await run_reference_index_contract(lambda schema: SqliteStore(tmp_path / "ref.db", schema))

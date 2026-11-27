@@ -15,6 +15,7 @@ from axislar_core.contracts import (
     IReferenceIndex,
     ReferenceLink,
     ReferenceValue,
+    run_reference_index_contract,
     run_storage_contract,
 )
 
@@ -162,3 +163,8 @@ async def test_reference_traversal_survives_reopen(tmp_path: Path) -> None:
 
     reopened = store(tmp_path)
     assert await reopened.references_to(EntityId("b")) == expected
+
+
+async def test_passes_reference_contract(tmp_path: Path) -> None:
+    """Семантика обхода ссылок проверяется контрактным набором ядра (ADR-0021)."""
+    await run_reference_index_contract(lambda schema: JsonStore(tmp_path / "ref.db", schema))
