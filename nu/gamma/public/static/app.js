@@ -2,13 +2,17 @@
 
 // Клиент AgoraLar: только чтение, только /api/v1. Никакой доменной логики —
 // интерфейс показывает то, что посчитал сервер (ADR-0019).
+//
+// Состояние выборки живёт в URL (?f=...&limit=...&offset=...): страницу можно
+// перезагрузить, переслать ссылкой и вернуться кнопкой «назад» без потери
+// фильтров.
 
 const state = { offset: 0, limit: 50, filters: [], total: 0, selected: null };
 
 const $ = (id) => document.getElementById(id);
 
 function showError(target, message) {
-  target.innerHTML = '';
+  target.replaceChildren();
   const p = document.createElement('p');
   p.className = 'err';
   p.textContent = message;
@@ -25,10 +29,84 @@ async function api(path) {
   return payload;
 }
 
-function filterTokens() {
-  const raw = $('filter-input').value.trim();
-  return raw ? raw.split(/\s+/).filter(Boolean) : [];
+// ------------------------------------------------------------------ URL
+
+function readUrl() {
+  const params = new URLSearchParams(location.search);
+  state.filters = params.getAll('f');
+  const limit = Number(params.get('limit'));
+  state.limit = Number.isFinite(limit) && limit > 0 ? Math.min(limit, 200) : 50;
+  const offset = Number(params.get('offset'));
+  state.offset = Number.isFinite(offset) && offset > 0 ? offset : 0;
 }
+
+function writeUrl(push) {
+  const params = new URLSearchParams();
+  for (const token of state.filters) params.append('f', token);
+  if (state.limit !== 50) params.set('limit', String(state.limit));
+  if (state.offset) params.set('offset', String(state.offset));
+  const query = params.toString();
+  const url = query ? `?${query}` : location.pathname;
+  if (url === location.search) return;
+  if (push) history.pushState(null, '', url);
+  else history.replaceState(null, '', url);
+}
+
+// ---------------------------------------------------------------- фильтры
+
+function renderChips() {
+  const box = $('chips');
+  box.replaceChildren();
+  if (!state.filters.length) {
+    const hint = document.createElement('span');
+    hint.className = 'muted';
+    hint.textContent = 'фильтров нет — показаны все объекты';
+    box.append(hint);
+    return;
+  }
+  state.filters.forEach((token, index) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    const label = document.createElement('span');
+    label.textContent = token;
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'chip-remove';
+    remove.title = 'убрать фильтр';
+    remove.textContent = '×';
+    remove.addEventListener('click', () => {
+      state.filters.splice(index, 1);
+      state.offset = 0;
+      writeUrl(true);
+      renderChips();
+      loadObjects();
+    });
+    chip.append(label, remove);
+    box.append(chip);
+  });
+}
+
+function addFilter(token) {
+  const clean = token.trim();
+  if (!clean) return;
+  if (!/^[^\s:=]+:(\w+)(=.*)?$/.test(clean)) {
+    $('filter-hint').textContent =
+      'ожидается axis:op=значения, например collection:contains=noir или tags:exists';
+    return;
+  }
+  if (state.filters.includes(clean)) return;
+  state.filters.push(clean);
+  state.offset = 0;
+  writeUrl(true);
+  renderChips();
+  loadObjects();
+}
+
+function filterTokens() {
+  return state.filters;
+}
+
+// ------------------------------------------------------------------ список
 
 function objectRow(row) {
   const item = document.createElement('div');
@@ -76,15 +154,17 @@ async function loadObjects() {
   }
 }
 
+// ------------------------------------------------------------------ карточка
+
 function addLinkRow(parent, title, rows, direction) {
   const heading = document.createElement('h3');
   heading.textContent = `${title} (${rows.length})`;
-  heading.style.fontSize = '.85rem';
   parent.append(heading);
   if (!rows.length) {
     const empty = document.createElement('p');
     empty.className = 'muted';
-    empty.textContent = direction === 'in' ? 'на объект никто не ссылается' : 'исходящих ссылок нет';
+    empty.textContent =
+      direction === 'in' ? 'на объект никто не ссылается' : 'исходящих ссылок нет';
     parent.append(empty);
     return;
   }
@@ -119,7 +199,6 @@ async function selectObject(id) {
     const entity = object.entity;
     card.replaceChildren();
     const title = document.createElement('p');
-    title.innerHTML = '';
     const strong = document.createElement('strong');
     strong.textContent = entity.scalars.title || entity.id;
     title.append(strong, ` · ${entity.kind}`);
@@ -129,7 +208,9 @@ async function selectObject(id) {
     facets.className = 'muted';
     const axes = Object.entries(entity.facets || {});
     facets.textContent = axes.length
-      ? axes.map(([axis, values]) => `${axis}: ${values.map((v) => v.value ?? v.target).join(', ')}`).join(' · ')
+      ? axes
+          .map(([axis, values]) => `${axis}: ${values.map((v) => v.value ?? v.target).join(', ')}`)
+          .join(' · ')
       : 'фасетов нет (разреженный объект)';
     card.append(facets);
 
@@ -143,6 +224,8 @@ async function selectObject(id) {
     showError(card, error.message);
   }
 }
+
+// ------------------------------------------------------------------ статистика
 
 function distribution(axis) {
   if (axis.kind === 'measurable') {
@@ -224,37 +307,51 @@ async function loadAxes() {
       option.value = `${axis.name}:exists`;
       list.append(option);
     }
-    $('filter-hint').textContent =
-      'синтаксис: axis:op=значения · операторы: contains, any_of, none_of, exists, not_exists, eq, gt, lt, gte, lte, between, scalar_eq';
   } catch (error) {
     $('filter-hint').textContent = error.message;
   }
 }
 
+// ------------------------------------------------------------------ события
+
 $('filters').addEventListener('submit', (event) => {
   event.preventDefault();
-  state.offset = 0;
-  loadObjects();
+  addFilter($('filter-input').value);
+  $('filter-input').value = '';
 });
 $('clear').addEventListener('click', () => {
-  $('filter-input').value = '';
+  state.filters = [];
   state.offset = 0;
+  writeUrl(true);
+  renderChips();
   loadObjects();
 });
 $('prev').addEventListener('click', () => {
   state.offset = Math.max(0, state.offset - state.limit);
+  writeUrl(true);
   loadObjects();
 });
 $('next').addEventListener('click', () => {
   state.offset += state.limit;
+  writeUrl(true);
   loadObjects();
 });
 $('limit').addEventListener('change', (event) => {
   state.limit = Number(event.target.value);
   state.offset = 0;
+  writeUrl(true);
+  loadObjects();
+});
+window.addEventListener('popstate', () => {
+  readUrl();
+  $('limit').value = String(state.limit);
+  renderChips();
   loadObjects();
 });
 
+readUrl();
+$('limit').value = String(state.limit);
+renderChips();
 loadAxes();
 loadStats();
 loadObjects();

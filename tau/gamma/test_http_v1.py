@@ -170,11 +170,14 @@ def test_static_index_and_asset(server: tuple[int, Any]) -> None:
     assert status == 200
     assert "text/html" in headers["content-type"]
     assert b"AgoraLar" in body
+    assert b'id="chips"' in body, "фильтры показываются чипами"
 
     status, body, headers = request(port, "GET", "/static/app.js")
     assert status == 200
     assert "javascript" in headers["content-type"]
     assert b"/api/v1/objects" in body
+    assert b"history.pushState" in body, "состояние выборки хранится в адресе"
+    assert b"getAll('f')" in body
 
     status, _, _ = request(port, "GET", "/static/../http_api.py")
     assert status == 404

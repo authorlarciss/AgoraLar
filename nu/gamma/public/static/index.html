@@ -14,9 +14,10 @@
 
 <main>
   <section class="panel">
+    <div class="chips" id="chips"></div>
     <form id="filters" class="filters">
-      <label>
-        фильтры
+      <label class="grow">
+        добавить фильтр
         <input id="filter-input" list="axis-list" placeholder="collection:contains=noir" autocomplete="off">
       </label>
       <datalist id="axis-list"></datalist>
@@ -26,10 +27,13 @@
           <option>25</option><option selected>50</option><option>100</option><option>200</option>
         </select>
       </label>
-      <button type="submit">найти</button>
+      <button type="submit">применить</button>
       <button type="button" id="clear">сбросить</button>
     </form>
-    <p class="hint" id="filter-hint"></p>
+    <p class="hint" id="filter-hint">
+      синтаксис: axis:op=значения · операторы: contains, any_of, none_of, exists, not_exists,
+      eq, gt, lt, gte, lte, between, scalar_eq · фильтры сохраняются в адресе страницы
+    </p>
     <div class="list" id="objects">
       <p class="muted">объектов нет — нажмите «найти»</p>
     </div>
