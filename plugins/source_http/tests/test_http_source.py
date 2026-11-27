@@ -254,7 +254,7 @@ async def test_headers_are_sent() -> None:
 
 def test_plugin_manifest() -> None:
     manifest = plugin()
-    assert manifest["requires_contract"] == ">=5,<6"
+    assert manifest["requires_contract"] == ">=6,<7"
     assert callable(manifest["factory"])
 
 

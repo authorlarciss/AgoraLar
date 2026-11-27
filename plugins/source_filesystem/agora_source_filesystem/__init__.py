@@ -35,7 +35,7 @@ from axislar_core.contracts import (
 )
 
 #: Контракт ядра, с которым совместим плагин.
-REQUIRES_CONTRACT = ">=5,<6"
+REQUIRES_CONTRACT = ">=6,<7"
 
 #: Оси по умолчанию: пять уровней каталогов.
 DEFAULT_LEVELS = ("owner", "media", "shelf", "section", "title")

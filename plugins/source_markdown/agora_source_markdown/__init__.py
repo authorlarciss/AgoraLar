@@ -43,7 +43,7 @@ from axislar_core.contracts import (
 )
 
 #: Контракт ядра, с которым совместим плагин.
-REQUIRES_CONTRACT = ">=5,<6"
+REQUIRES_CONTRACT = ">=6,<7"
 
 #: Каталоги, которые не являются заметками.
 SKIP_DIRS = frozenset({".git", ".obsidian", ".trash", ".idea", ".vscode", "node_modules"})

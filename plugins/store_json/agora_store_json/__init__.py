@@ -38,7 +38,7 @@ STORE_VERSION = 2
 READABLE_VERSIONS = (1, STORE_VERSION)
 
 #: Контракт ядра, с которым совместим плагин.
-REQUIRES_CONTRACT = ">=5,<6"
+REQUIRES_CONTRACT = ">=6,<7"
 
 #: Путь по умолчанию, если конфиг его не задал.
 DEFAULT_PATH = Path(".agoralar") / "vault.json"
@@ -153,8 +153,8 @@ class JsonStore(IStorageEngine, IReferenceIndex):
             await self._flush()
         return errors
 
-    async def upsert(self, entity: Entity) -> list[DomainError]:
-        errors = await (await self._store()).upsert(entity)
+    async def upsert(self, entity: Entity, *, expected_rev: int | None = None) -> list[DomainError]:
+        errors = await (await self._store()).upsert(entity, expected_rev=expected_rev)
         if not errors:
             await self._flush()
         return errors

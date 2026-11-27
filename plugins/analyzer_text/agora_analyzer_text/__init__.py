@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 #: Версия контракта продукта, с которым совместим плагин (contract 5 ядра).
-REQUIRES_CONTRACT = ">=5,<6"
+REQUIRES_CONTRACT = ">=6,<7"
 
 #: Версия алгоритма: попадает в провенанс, смена = новый `derived_by`.
 VERSION = "0.1.0"

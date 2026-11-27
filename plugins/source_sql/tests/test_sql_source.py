@@ -199,7 +199,7 @@ async def test_batch_size_does_not_change_result(tmp_path: Path) -> None:
 
 def test_plugin_manifest() -> None:
     manifest = plugin()
-    assert manifest["requires_contract"] == ">=5,<6"
+    assert manifest["requires_contract"] == ">=6,<7"
     assert callable(manifest["factory"])
 
 

@@ -8,6 +8,10 @@ from nu.beta.public.objects import ObjectRow as ObjectRow
 from nu.beta.public.objects import entity_links as entity_links
 from nu.beta.public.objects import list_objects as list_objects
 from nu.beta.public.objects import row_of as row_of
+from nu.beta.public.patch import BulkPatchResult as BulkPatchResult
+from nu.beta.public.patch import FacetPatch as FacetPatch
+from nu.beta.public.patch import apply_patches as apply_patches
+from nu.beta.public.patch import bulk_patch as bulk_patch
 from nu.beta.public.registry import ENTRY_GROUPS as ENTRY_GROUPS
 from nu.beta.public.registry import PluginRegistry as PluginRegistry
 from nu.beta.public.registry import RegistryState as RegistryState
@@ -28,6 +32,10 @@ from nu.beta.public.sync_state import state_path_for as state_path_for
 
 __all__ = [
     "AxisStats",
+    "BulkPatchResult",
+    "FacetPatch",
+    "apply_patches",
+    "bulk_patch",
     "LinkRow",
     "ObjectList",
     "ObjectRow",

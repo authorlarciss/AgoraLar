@@ -164,5 +164,5 @@ def test_create_requires_root() -> None:
 
 def test_manifest_is_plain_data() -> None:
     manifest = plugin()
-    assert manifest["requires_contract"] == ">=5,<6"
+    assert manifest["requires_contract"] == ">=6,<7"
     assert callable(manifest["factory"])

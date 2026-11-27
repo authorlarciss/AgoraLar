@@ -61,7 +61,7 @@ from axislar_core.contracts import (
 STORE_VERSION = 2
 
 #: Контракт ядра, с которым совместим плагин.
-REQUIRES_CONTRACT = ">=5,<6"
+REQUIRES_CONTRACT = ">=6,<7"
 
 #: Путь по умолчанию, если конфиг его не задал.
 DEFAULT_PATH = Path(".agoralar") / "vault.sqlite3"
@@ -267,14 +267,22 @@ class SqliteStore(IStorageEngine, IReferenceIndex):
 
     # --------------------------------------------------------------- запись
 
-    async def upsert(self, entity: Entity) -> list[DomainError]:
-        return await self._write((entity,))
+    async def upsert(self, entity: Entity, *, expected_rev: int | None = None) -> list[DomainError]:
+        return await self._write((entity,), expected_revs={str(entity.id): expected_rev})
 
     async def bulk_upsert(self, entities: Sequence[Entity]) -> list[DomainError]:
-        """Пачка атомарна: при любой ошибке не пишется ничего (ADR-0022)."""
+        """Пачка атомарна: при любой ошибке не пишется ничего (ADR-0022).
+
+        Ревизии ставятся, но не проверяются: это путь импорта и синхронизации
+        (ADR-0024).
+        """
         return await self._write(entities)
 
-    async def _write(self, entities: Sequence[Entity]) -> list[DomainError]:
+    async def _write(
+        self,
+        entities: Sequence[Entity],
+        expected_revs: Mapping[str, int | None] | None = None,
+    ) -> list[DomainError]:
         if not entities:
             return []
         schema = await self._schema_of()
@@ -294,6 +302,27 @@ class SqliteStore(IStorageEngine, IReferenceIndex):
         try:
             with closing(self._connect()) as connection, connection:
                 self._create_tables(connection)
+                stamped: list[Entity] = []
+                conflicts: list[DomainError] = []
+                for entity in entities:
+                    current = _current_rev(connection, str(entity.id))
+                    expected = (expected_revs or {}).get(str(entity.id))
+                    if expected is not None and expected != current:
+                        conflicts.append(
+                            DomainError(
+                                code=ErrorCode.CONFLICT,
+                                detail=(
+                                    f"revision mismatch: expected {expected}, current {current}"
+                                ),
+                                entity_id=entity.id,
+                            )
+                        )
+                        continue
+                    stamped.append(entity.model_copy(update={"rev": current + 1}))
+                if conflicts:
+                    return conflicts
+                entities = tuple(stamped)
+
                 # Ссылка может указывать на любой объект этой же пачки.
                 known_ids = _select_ids(connection, "entities", "id", targets) | {
                     EntityId(entity_id) for entity_id in batch_ids
@@ -570,6 +599,19 @@ class SqliteStore(IStorageEngine, IReferenceIndex):
 
 
 # ------------------------------------------------------------------ helpers
+
+
+def _current_rev(connection: sqlite3.Connection, entity_id: str) -> int:
+    """Текущая ревизия объекта (0, если объекта нет) — для ADR-0024."""
+    row = connection.execute("SELECT doc FROM entities WHERE id = ?", (entity_id,)).fetchone()
+    if row is None:
+        return 0
+    try:
+        payload = json.loads(row[0])
+    except TypeError:  # pragma: no cover - защита от нестрокового doc
+        return 0
+    rev = payload.get("rev")
+    return int(rev) if isinstance(rev, int) else 0
 
 
 def _read_meta(connection: sqlite3.Connection) -> dict[str, str]:

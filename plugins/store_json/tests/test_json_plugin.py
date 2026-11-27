@@ -64,7 +64,7 @@ async def test_unsupported_version_is_reported(tmp_path: Path) -> None:
 
 def test_manifest_is_plain_data() -> None:
     manifest = plugin()
-    assert manifest["requires_contract"] == ">=5,<6"
+    assert manifest["requires_contract"] == ">=6,<7"
     assert callable(manifest["factory"])
 
 

@@ -32,7 +32,7 @@ async def test_health(tmp_path: Path) -> None:
     status, payload = await call(target, "GET", "/health")
     assert status == 200
     assert payload["store"] == "json"
-    assert payload["kernel_contract"] == "5"
+    assert payload["kernel_contract"] == "6"
 
 
 async def test_schema_is_empty_initially(tmp_path: Path) -> None:
