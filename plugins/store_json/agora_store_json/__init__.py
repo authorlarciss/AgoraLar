@@ -55,6 +55,8 @@ class JsonStore(IStorageEngine, IReferenceIndex):
         self._path = Path(path)
         self._schema = schema
         self._engine: IStorageEngine | None = None
+        #: Возможности бэкенда не меняются в рантайме: считаем один раз.
+        self._capabilities: frozenset[Capability] | None = None
 
     async def _store(self) -> IStorageEngine:
         if self._engine is None:
@@ -210,7 +212,9 @@ class JsonStore(IStorageEngine, IReferenceIndex):
         return await engine.references_to(entity_id, axes, include_deleted=include_deleted)
 
     def capabilities(self) -> frozenset[Capability]:
-        return build_core().storage.capabilities()
+        if self._capabilities is None:
+            self._capabilities = build_core().storage.capabilities()
+        return self._capabilities
 
 
 def create(options: Mapping[str, Any]) -> IStorageEngine:

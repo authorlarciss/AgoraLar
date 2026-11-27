@@ -65,6 +65,8 @@ class SqliteStore(IStorageEngine, IReferenceIndex):
         self._path = Path(path)
         self._schema = schema
         self._engine: IStorageEngine | None = None
+        #: Возможности бэкенда не меняются в рантайме: считаем один раз.
+        self._capabilities: frozenset[Capability] | None = None
 
     # --------------------------------------------------------------- доступ
 
@@ -253,7 +255,9 @@ class SqliteStore(IStorageEngine, IReferenceIndex):
         return await engine.references_to(entity_id, axes, include_deleted=include_deleted)
 
     def capabilities(self) -> frozenset[Capability]:
-        return build_core().storage.capabilities()
+        if self._capabilities is None:
+            self._capabilities = build_core().storage.capabilities()
+        return self._capabilities
 
 
 __all__ = ["STORE_VERSION", "SqliteStore", "SqliteStoreError"]
