@@ -193,7 +193,7 @@ uv pip install agoralar
 # ядро берётся из релиза AxisLar
 mkdir -p wheels/axislar wheels/agoralar
 gh release download v0.12.1 -R authorlarciss/AxisLar -p '*.whl' --dir wheels/axislar
-gh release download v0.20.2 -R authorlarciss/AgoraLar -p '*.whl' --dir wheels/agoralar
+gh release download v0.20.3 -R authorlarciss/AgoraLar -p '*.whl' --dir wheels/agoralar
 
 uv venv .venv
 uv pip install --python .venv/bin/python \
@@ -252,7 +252,7 @@ MIT — см. [LICENSE](LICENSE).
 
 ## Статус
 
-`0.20.2`: MIT, честные зависимости, ядро 0.12.0 (обратные ссылки — `references_to` в сторах); реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
+`0.20.3`: MIT, честные зависимости, ядро 0.12.0 (обратные ссылки — `references_to` в сторах); реестр плагинов, бэкенды `json`/`sqlite` с артефактами,
 HTTP с bearer-токеном и образом в `Dockerfile`, анализатор текста,
 источники `markdown`, `filesystem`, `sql` и `http`, CLI (`sync`, `watch`, `serve` — HTTP), конфиг `agoralar.toml`,
 история прогонов, провенанс и reuse производных фактов по `content_hash`,

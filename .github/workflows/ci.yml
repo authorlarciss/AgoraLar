@@ -153,7 +153,7 @@ jobs:
         run: |
           set -euo pipefail
           uv run --with pypi-attestations --no-project \
-            python -m pypi_attestations sign dist/
+            python -m pypi_attestations sign dist/*.whl dist/*.tar.gz
           ls -1 dist | grep -c attestation
 
       - name: Publish to PyPI

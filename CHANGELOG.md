@@ -9,6 +9,14 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.20.3] - 2026-11-27
+
+### Fixed
+
+- Подпись аттестаций вызывалась с каталогом (`sign dist/`), а CLI ждёт
+  файлы: `sign dist/*.whl dist/*.tar.gz`. Из-за этого job `publish` падал
+  до загрузки, и 0.20.2 в PyPI не попал.
+
 ## [0.20.2] - 2026-11-27
 
 ### Changed
