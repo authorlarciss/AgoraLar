@@ -5,7 +5,7 @@
 
 ## 0. Статус (2026-11-27)
 
-**Текущая версия — 0.19.0** на ядре `axislar-core` 0.12.0 (contract 5).
+**Текущая версия — 0.20.0** на ядре `axislar-core` 0.12.0 (contract 5).
 Выполнено: P0–P5 и сверх плана — HTTP, история прогонов, периодический
 `watch`, провенанс и reuse производных фактов. Плагины: `json` (0.5.4),
 `sqlite` (0.4.4), `filesystem` (0.3.4), `sql` (0.2.4), `http` (0.2.4),
@@ -45,6 +45,7 @@ CLI `artifact put/get/ls/rm`, HTTP `/artifacts`, бэкенды `json`/`sqlite`
 | Шаблоны схемы и конфига: `init --template`, `init --list` | `nu/iota/public/templates.py` |
 | Обратные ссылки из CLI: `links --id` | `nu/gamma/_internal/cli.py` |
 | Отчёт о разреженности: `visualize --output` | `nu/gamma/_internal/visualize.py` |
+| Дерево представлений: `export --group-by` | `nu/gamma/_internal/export.py` |
 | Демо: шаблон → sync → query → связи → отчёт | `examples/demo`, `scripts/demo.sh` |
 | Анализаторы: `agoralar analyze`, плагин `text`, провенанс в `derived_by` | `nu/beta/public/analyzers.py`, `plugins/analyzer_text` (ADR-0018) |
 
@@ -118,9 +119,11 @@ cookbook) разобраны отдельно — `lambda/ROADMAP.md`, там ж
     битая ссылка — предупреждение, а не теневой объект; кодовые блоки
     игнорируются. Шаблон `obsidian-vault` переведён на этот источник,
     e2e-тест проверяет `sync → query → links`.
-14. **`export --format symlinks --group-by axis:…`** (ROADMAP §3): дерево
-    представлений без изменения оригиналов, `--dry-run` по умолчанию,
-    политика для мультизначных и отсутствующих значений.
+14. **`export --format symlinks --group-by …`** — сделано (ROADMAP §3):
+    дерево симлинков, dry-run по умолчанию, `--multi first|all|join`,
+    `_none` для разреженных, суффикс id при коллизиях, `--hardlink`,
+    защита от записи в чужой каталог (по содержимому, а не по «непусто»),
+    идемпотентный повтор, существующие ссылки не удаляются.
 15. **`agoralar visualize`** — сделано (ROADMAP §7): автономный HTML без
     сети, ресурсов и JavaScript; заполненность и распределение по каждой
     оси, медиана/min/max для measurable, доля скаляров, пустые оси

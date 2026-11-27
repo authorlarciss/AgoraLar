@@ -44,6 +44,12 @@ from axislar_core.contracts import (
     plan_sync,
 )
 
+from nu.gamma._internal.export import (
+    ExportError,
+    apply_export,
+    plan_export,
+    render_plan,
+)
 from nu.psi.contracts.alpha import BUILTIN_STORE, Config
 from nu.psi.contracts.beta import (
     PluginRegistry,
@@ -563,6 +569,15 @@ def is_loopback(host: str) -> bool:
     return host in {"localhost", "::1", "[::1]"} or host.startswith("127.")
 
 
+def source_root_from_config(config: Config) -> Path | None:
+    """Корень файлов источника: первая секция плагина с параметром `root`."""
+    for name in sorted(config.plugins):
+        root = config.plugins[name].get("root")
+        if isinstance(root, str) and root:
+            return Path(root)
+    return None
+
+
 def resolve_config(args: argparse.Namespace) -> Config:
     """Прочитать конфиг: явный `--config` или поиск вверх от cwd."""
     return load_config(args.config)
@@ -723,6 +738,30 @@ async def run(args: argparse.Namespace) -> int:
         print(render_result(await product.core.query(build_query(args)), args.json))
         return 0
 
+    if args.command == "export-symlinks":
+        group_by = [piece.strip() for piece in args.group_by.split(",") if piece.strip()]
+        entities = await product.core.storage.list_entities()
+        plan = plan_export(
+            entities,
+            group_by,
+            output_root=args.output,
+            source_root=args.source_root or source_root_from_config(config),
+            multi=args.multi,
+            name_scalar=args.name_scalar,
+        )
+        print(render_plan(plan))
+        if not args.apply:
+            print("dry-run: ссылки не созданы (--apply, чтобы применить)")
+            return 0
+        result = apply_export(plan, force=args.force, hardlink=args.hardlink)
+        print(
+            f"created {result.created}, existing {result.existing}, "
+            f"conflicts {len(result.conflicts)}"
+        )
+        for conflict in result.conflicts[:10]:
+            print(f"  конфликт: {conflict} уже существует и указывает в другое место")
+        return 0
+
     if args.command == "visualize":
         from nu.gamma._internal.visualize import collect, render
 
@@ -832,6 +871,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="конфиг уже есть: добавить недостающие оси вместо отказа",
     )
     init.set_defaults(command="init")
+
+    export = subparsers.add_parser("export", help="экспорт представлений (дерево симлинков)")
+    export.add_argument("--format", default="symlinks", choices=("symlinks",))
+    export.add_argument("--group-by", required=True, help="оси через запятую: collection,section")
+    export.add_argument("--output", type=Path, default=Path("views"), help="куда писать дерево")
+    export.add_argument(
+        "--source-root", type=Path, help="корень файлов источника (иначе из конфига)"
+    )
+    export.add_argument(
+        "--multi",
+        choices=("first", "all", "join"),
+        default="first",
+        help="мультизначные оси: первое значение, все или склейка",
+    )
+    export.add_argument("--name-scalar", default="filename", help="скаляр с именем файла")
+    export.add_argument("--hardlink", action="store_true", help="жёсткие ссылки вместо симлинков")
+    export.add_argument("--force", action="store_true", help="писать в непустой каталог")
+    export.add_argument("--apply", action="store_true", help="создать ссылки (иначе dry-run)")
+    export.set_defaults(command="export-symlinks")
 
     visualize = subparsers.add_parser("visualize", help="автономный HTML-отчёт о хранилище")
     visualize.add_argument(
@@ -983,7 +1041,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
         return asyncio.run(run(args))
-    except (CliError, ConfigError, UnknownPluginError) as error:
+    except (CliError, ConfigError, ExportError, UnknownPluginError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     except StorageQueryError as error:  # движок отказал: запрос не прошёл валидацию
