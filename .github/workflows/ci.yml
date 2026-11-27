@@ -146,9 +146,24 @@ jobs:
       - name: Publish to PyPI
         run: |
           set -euo pipefail
+          # Пропускаем версии, которые уже есть в индексе: их могли
+          # опубликовать вручную, а хеш пересобранного колеса не обязан
+          # совпадать. `--check-url` здесь не годится — он падает на
+          # несовпадении хеша вместо пропуска.
+          already_published() {
+            curl -fsS -o /dev/null "https://pypi.org/pypi/$1/$2/json"
+          }
           publish() {
-            uv publish --trusted-publishing always \
-              --check-url https://pypi.org/simple/ "$@"
+            local file project version
+            for file in "$@"; do
+              project=$(basename "$file" | cut -d- -f1 | tr '_' '-')
+              version=$(basename "$file" | cut -d- -f2)
+              if already_published "$project" "$version"; then
+                echo "skip: $project $version уже в индексе"
+                continue
+              fi
+              uv publish --trusted-publishing always "$file"
+            done
           }
           publish dist/agoralar-*.whl dist/agoralar-*.tar.gz
           for plugin in dist/agoralar_*.whl; do

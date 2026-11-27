@@ -1,5 +1,12 @@
 .PHONY: help demo bench install core install-pip lock lint lint-imports contracts contracts-check strip-template dist dist-all typecheck format format-check check ci test test-unit test-integration test-contract test-e2e test-module run clean docker-context docker-build verify verify-docker verify-index publish-check publish-test publish
 
+# Воспроизводимые сборки: одинаковый исходник даёт одинаковый хеш колеса.
+# Иначе повторный `uv publish` той же версии упирается в «local file and
+# index file do not match» (PyPI), и перезапуск CI после ручной публикации
+# невозможен.
+SOURCE_DATE_EPOCH ?= $(shell git log -1 --format=%ct 2>/dev/null || echo 0)
+export SOURCE_DATE_EPOCH
+
 PYTHON := python3
 VENV := .venv
 PRECOMMIT := $(VENV)/bin/pre-commit
