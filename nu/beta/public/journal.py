@@ -12,8 +12,10 @@
 
 Откат:
 - была правка (снимок «до» есть) — восстанавливаем его с проверкой ревизии;
-- было создание (снимка «до» нет) — ставим tombstone (удалять нечего,
-  а «удалить» без tombstone нельзя: модель этого не умеет, ADR-0022).
+- было создание (снимка «до» нет) — ставим tombstone через
+  `tombstone_entity` ядра: если на созданный объект уже кто-то ссылается,
+  откат отказывает (`REFERENCE_IN_USE`), а не оставляет висячую ссылку
+  (ADR-0025 ядра).
 """
 
 from __future__ import annotations
@@ -25,7 +27,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from axislar_core.contracts import Entity, EntityId, IStorageEngine
+from axislar_core.contracts import Entity, EntityId, IStorageEngine, tombstone_entity
 
 #: Сколько записей журнала хранить. Дальше — обрезаем при записи.
 DEFAULT_LIMIT = 200
@@ -151,10 +153,11 @@ async def undo_last(storage: IStorageEngine, journal: Journal) -> JournalEntry |
     if entry.before is None:
         current = await storage.get(EntityId(entry.entity_id))
         if current is not None and current.deleted_at is None:
-            tombstone = current.model_copy(update={"deleted_at": datetime.now(UTC)})
-            errors = await storage.upsert(tombstone, expected_rev=expected)
+            errors = await tombstone_entity(storage, current.id, expected_rev=expected)
             if errors:
-                raise JournalError(f"cannot undo creation: {errors[0]}")
+                raise JournalError(
+                    f"cannot undo creation: {errors[0]} — снимите ссылки или откажитесь от отката"
+                )
         journal.pop_last()
         return entry
 

@@ -15,7 +15,7 @@ authors = [
 ]
 dependencies = [
     "packaging>=24.0",
-    "axislar-core>=0.13,<0.14",
+    "axislar-core>=0.14,<0.15",
     "agoralar-store-json>=0.5,<0.6",
     "agoralar-store-sqlite>=0.4,<0.5",
     "agoralar-source-filesystem>=0.3,<0.4",

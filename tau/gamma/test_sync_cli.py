@@ -11,12 +11,13 @@ from nu.gamma._internal.cli import main, parse_option_value
 
 STATE = "v.json"
 SOURCE_ID = "owner-media"
+FILE_NAME = "gutsu__2025-01-29-00-26-24_1738099584068.mp4"
 
 
 def make_tree(root: Path) -> Path:
     folder = root / "Owner" / "Video" / "Treat" / "Anime" / "VTA Berserk"
     folder.mkdir(parents=True)
-    (folder / "gutsu__2025-01-29-00-26-24_1738099584068.mp4").write_bytes(b"video")
+    (folder / FILE_NAME).write_bytes(b"video")
     return folder
 
 
@@ -431,3 +432,52 @@ def test_sql_source_end_to_end(tmp_path: Path, capsys: pytest.CaptureFixture[str
 
     assert run(tmp_path, "query", "--filter", "author:contains=ann", "--json") == 0
     assert json.loads(capsys.readouterr().out)["total"] == 1
+
+
+def test_apply_warns_when_tombstone_leaves_dangling_reference(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """ADR-0025 ядра: sync не блокируется ссылками, но обязан предупредить."""
+    from axislar_core.contracts import entity_id_for
+
+    declare_schema(tmp_path)
+    assert (
+        run(
+            tmp_path,
+            "schema",
+            "add-axis",
+            "--name",
+            "related",
+            "--kind",
+            "reference",
+            "--target",
+            "item",
+        )
+        == 0
+    )
+    folder = make_tree(tmp_path / "data")
+    assert sync(tmp_path, "--apply") == 0
+    capsys.readouterr()
+
+    relative = (folder / FILE_NAME).relative_to(tmp_path / "data")
+    target = entity_id_for(SOURCE_ID, relative.as_posix())
+    assert (
+        run(
+            tmp_path,
+            "put",
+            "--id",
+            "ref-1",
+            "--kind",
+            "note",
+            "--facet",
+            f"related={target}",
+        )
+        == 0
+    )
+
+    (folder / FILE_NAME).unlink()
+    assert sync(tmp_path, "--apply") == 0
+    captured = capsys.readouterr()
+    assert "tombstone=1" in captured.out
+    assert "ссылки стали висячими" in captured.err
+    assert str(target) in captured.err

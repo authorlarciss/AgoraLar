@@ -18,6 +18,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from axislar_core.contracts import (
+    ActionKind,
     ArtifactRef,
     AxisDefinition,
     AxisKind,
@@ -28,6 +29,7 @@ from axislar_core.contracts import (
     ErrorCode,
     FacetValue,
     IReferenceIndex,
+    IStorageEngine,
     MeasurableValue,
     Provenance,
     Query,
@@ -36,8 +38,10 @@ from axislar_core.contracts import (
     ScalarDefinition,
     StorageQueryError,
     StorageSchema,
+    SyncPlan,
     SyncPolicy,
     apply_plan,
+    collect_dangling,
     make_artifact,
     plan_sync,
 )
@@ -268,6 +272,7 @@ async def _sync_once(args: argparse.Namespace, product: Product, config: Config)
         return 0
 
     applied = await apply_plan(storage, plan)
+    await _warn_dangling(storage, plan)
     record = SyncState(
         source_id=source_id,
         last_run_at=sync_now(),
@@ -278,6 +283,28 @@ async def _sync_once(args: argparse.Namespace, product: Product, config: Config)
     save_state(state_path, record_sync(history, record))
     print(f"applied: {applied}; state: {state_path}")
     return 0
+
+
+async def _warn_dangling(storage: IStorageEngine, plan: SyncPlan) -> None:
+    """Предупредить, если tombstone из источника оставил висячие ссылки.
+
+    Синхронизация политику удаления не проходит (ADR-0025 ядра): источник —
+    владелец фактов, и запрет остановил бы её навсегда. Но молчать нельзя:
+    висячая ссылка видна только в карточке и графе, то есть поздно.
+    """
+    tombstoned = tuple(
+        action.entity.id for action in plan.actions if action.kind == ActionKind.TOMBSTONE
+    )
+    if not tombstoned:
+        return
+    dangling = await collect_dangling(storage, tombstoned)
+    for item in dangling:
+        axes = ", ".join(sorted({link.axis for link in item.links}))
+        print(
+            f"warning: {item.target} удалён, но на него ссылаются "
+            f"{len(item.links)} ссылок ({axes}) — ссылки стали висячими",
+            file=sys.stderr,
+        )
 
 
 async def run_sync(args: argparse.Namespace, product: Product, config: Config) -> int:

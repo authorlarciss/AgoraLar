@@ -12,6 +12,7 @@ from axislar_core.contracts import (
     Entity,
     EntityId,
     IStorageEngine,
+    ReferenceValue,
     ScalarDefinition,
     build_core,
 )
@@ -124,3 +125,34 @@ async def test_journal_limit_keeps_recent(tmp_path: Path) -> None:
     snapshot = await engine.get(EntityId("n1"))
     target.append([make_entry("put", None, snapshot) for _ in range(5)])
     assert len(target.entries()) == 2
+
+
+async def test_undo_of_creation_refuses_when_object_is_referenced(tmp_path: Path) -> None:
+    """ADR-0025 ядра: откат создания не оставляет висячих ссылок."""
+    engine = build_core().storage
+    assert (
+        await engine.add_axis(
+            AxisDefinition(name="related", kind=AxisKind.REFERENCE, target="note")
+        )
+        == []
+    )
+    target_object = Entity.model_validate({"id": "n2", "kind": "note"})
+    assert await engine.upsert(target_object) == []
+    target = journal(tmp_path)
+    target.append([make_entry("put", None, await engine.get(EntityId("n2")))])
+
+    referrer = Entity(
+        id=EntityId("n1"),
+        kind="note",
+        facets={"related": (ReferenceValue(target=EntityId("n2")),)},
+    )
+    assert await engine.upsert(referrer) == []
+
+    with pytest.raises(JournalError, match="reference_in_use"):
+        await undo_last(engine, target)
+    assert await engine.get(EntityId("n2")) is not None, "объект остался жив"
+    assert target.last() is not None, "запись журнала не снята"
+
+    assert await engine.upsert(Entity.model_validate({"id": "n1", "kind": "note"})) == []
+    assert await undo_last(engine, target) is not None
+    assert await engine.get(EntityId("n2")) is None
