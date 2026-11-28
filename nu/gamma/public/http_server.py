@@ -10,7 +10,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from nu.gamma.public.http_api import HttpApi
+from nu.gamma.public.http_api import SESSION_COOKIE, HttpApi
 
 #: Размер тела запроса, который сервер готов принять.
 MAX_BODY = 8 * 1024 * 1024
@@ -75,6 +75,8 @@ class _Handler(BaseHTTPRequestHandler):
             # Наружу — ничего о внутренностях: текст исключения уходит в лог.
             _LOG.exception("unhandled error in HTTP handler")
             status, payload = 500, {"error": "internal error"}
+        for name, value in self._cookie_header().items():
+            extra.setdefault(name, value)
         self._send(status, payload, headers=extra)
 
     def _send(
@@ -97,11 +99,21 @@ class _Handler(BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(data)
 
+    def _cookie_header(self) -> dict[str, str]:
+        """Сессионная cookie: выдаём, если клиент её ещё не присылал (5.7)."""
+        if SESSION_COOKIE in (self.headers.get("Cookie") or ""):
+            return {}
+        return {
+            "Set-Cookie": f"{SESSION_COOKIE}={self.api.session}; Path=/; SameSite=Strict; HttpOnly"
+        }
+
     def _send_bytes(self, data: bytes, content_type: str) -> None:
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
+        for name, value in self._cookie_header().items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(data)
 

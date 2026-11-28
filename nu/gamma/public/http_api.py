@@ -18,7 +18,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 from axislar_core.contracts import (
@@ -57,6 +57,16 @@ from nu.psi.product import Product
 
 _LOG = logging.getLogger("agoralar.http")
 
+#: Методы, меняющие состояние: для них проверяется источник запроса.
+MUTATING_METHODS = frozenset({"POST", "PUT", "DELETE", "PATCH"})
+
+#: Имя сессионной cookie: `SameSite=Strict` — браузер не пришлёт её с чужой
+#: страницы, поэтому подделанное значение = признак вмешательства.
+SESSION_COOKIE = "agoralar_session"
+
+#: Хосты, которые считаются «своими» для loopback-режима.
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1", "[::1]"})
+
 #: (status, payload[, headers]) — ответ маршрута.
 Response = tuple[int, dict[str, Any]] | tuple[int, dict[str, Any], dict[str, str]]
 
@@ -90,6 +100,8 @@ class HttpApi:
         #: Фоновые задачи синхронизации: id -> состояние (фаза 3.5).
         self._jobs: dict[str, dict[str, Any]] = {}
         self._jobs_lock = threading.Lock()
+        #: Значение сессионной cookie для этого процесса (5.7).
+        self.session = secrets.token_urlsafe(16)
 
     async def handle(
         self,
@@ -101,6 +113,13 @@ class HttpApi:
         """Обработать один запрос."""
         route = path.split("?", 1)[0].rstrip("/") or "/"
         parts = [part for part in route.split("/") if part]
+
+        if method in MUTATING_METHODS:
+            if not _same_origin(headers):
+                return 403, {"error": "cross-origin request rejected"}
+            presented = _cookie(headers, SESSION_COOKIE)
+            if presented is not None and presented != self.session:
+                return 403, {"error": "stale session cookie"}
 
         if self.token is not None and route != OPEN_PATH and not self._authorized(headers):
             return 401, {"error": "unauthorized"}
@@ -930,6 +949,35 @@ def _patches(raw: Any) -> tuple[FacetPatch, ...]:
         except ValueError as error:
             raise ValueError(str(error)) from error
     return tuple(patches)
+
+
+def _cookie(headers: Mapping[str, str] | None, name: str) -> str | None:
+    """Значение cookie из заголовка `Cookie` (без библиотеки)."""
+    raw = _header(headers, "Cookie")
+    if not raw:
+        return None
+    for chunk in raw.split(";"):
+        key, _, value = chunk.strip().partition("=")
+        if key == name:
+            return value
+    return None
+
+
+def _same_origin(headers: Mapping[str, str] | None) -> bool:
+    """Не пришёл ли меняющий запрос с чужой страницы (ADR-0020, 5.7).
+
+    Защита от CSRF для локального сервиса: браузер обязан прислать `Origin`
+    на POST/PUT/DELETE, а `Sec-Fetch-Site` явно говорит `cross-site`.
+    Запросы без `Origin` (curl, скрипты, CLI) не блокируются: это локальные
+    процессы того же пользователя, и токен для них — отдельный рубеж.
+    """
+    origin = _header(headers, "Origin")
+    if origin is not None:
+        host = urlparse(origin).hostname
+        if host not in LOOPBACK_HOSTS:
+            return False
+    site = _header(headers, "Sec-Fetch-Site")
+    return site is None or site in {"same-origin", "same-site", "none"}
 
 
 def _v1_error(code: str, message: str, **context: Any) -> dict[str, Any]:

@@ -593,3 +593,62 @@ def test_graph_route_validates_input(server: tuple[int, Any]) -> None:
     status, reply, _ = request(port, "GET", "/api/v1/graph?ids=n1&direction=sideways")
     assert status == 400
     assert reply["error"]["code"] == "invalid_graph"
+
+
+def test_mutating_requests_from_foreign_origin_are_rejected(server: tuple[int, Any]) -> None:
+    """5.7: чужая страница не может править локальный архив (CSRF)."""
+    port, _ = server
+    body = {"ids": ["n1"], "ops": [{"axis": "tags", "mode": "unset"}], "force": True}
+
+    status, reply, _ = request(
+        port, "POST", "/api/v1/patch", headers={"Origin": "https://evil.example"}, body=body
+    )
+    assert status == 403
+    assert "cross-origin" in reply["error"]
+
+    status, reply, _ = request(
+        port,
+        "POST",
+        "/api/v1/patch",
+        headers={"Origin": "http://127.0.0.1:8000", "Sec-Fetch-Site": "cross-site"},
+        body=body,
+    )
+    assert status == 403
+
+    status, reply, _ = request(
+        port,
+        "POST",
+        "/api/v1/patch",
+        headers={"Origin": "http://127.0.0.1:8000", "Sec-Fetch-Site": "same-origin"},
+        body=body,
+    )
+    assert status == 200, reply
+
+
+def test_reads_are_not_blocked_by_origin(server: tuple[int, Any]) -> None:
+    port, _ = server
+    status, _, _ = request(
+        port, "GET", "/api/v1/objects", headers={"Origin": "https://evil.example"}
+    )
+    assert status == 200
+
+
+def test_session_cookie_is_issued_and_tampering_rejected(server: tuple[int, Any]) -> None:
+    """5.7: cookie `SameSite=Strict` выдаётся, подделка отклоняется."""
+    port, _ = server
+    status, _, headers = request(port, "GET", "/")
+    assert status == 200
+    cookie = headers.get("set-cookie", "")
+    assert "agoralar_session=" in cookie
+    assert "SameSite=Strict" in cookie
+
+    body = {"ids": ["n1"], "ops": [{"axis": "tags", "mode": "unset"}], "force": True}
+    status, reply, _ = request(
+        port,
+        "POST",
+        "/api/v1/patch",
+        headers={"Cookie": "agoralar_session=forged"},
+        body=body,
+    )
+    assert status == 403
+    assert "session cookie" in reply["error"]
