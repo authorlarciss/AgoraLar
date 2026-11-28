@@ -15,6 +15,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs
+from uuid import uuid4
 
 from axislar_core.contracts import (
     AxisDefinition,
@@ -26,6 +27,7 @@ from axislar_core.contracts import (
     ScalarDefinition,
     StorageQueryError,
     make_artifact,
+    tombstone_entity,
 )
 
 from nu.psi.contracts.beta import (
@@ -35,6 +37,7 @@ from nu.psi.contracts.beta import (
     entity_links,
     journaled_patch,
     list_objects,
+    make_entry,
     store_stats,
     undo_last,
 )
@@ -195,8 +198,12 @@ class HttpApi:
         head = parts[0]
         if head == "objects" and len(parts) == 1 and method == "GET":
             return await self._v1_objects(params)
+        if head == "objects" and len(parts) == 1 and method == "POST":
+            return await self._v1_create(body)
         if head == "objects" and len(parts) == 2 and method == "GET":
             return await self._v1_object(parts[1], headers)
+        if head == "objects" and len(parts) == 2 and method == "DELETE":
+            return await self._v1_delete(parts[1], headers)
         if head == "objects" and len(parts) == 2 and method == "PUT":
             return await self._v1_put_object(parts[1], body, headers)
         if head == "patch" and len(parts) == 1 and method == "POST":
@@ -254,6 +261,62 @@ class HttpApi:
         if presented == etag:
             return 304, {}, {"ETag": etag}
         return 200, {"entity": json.loads(payload)}, {"ETag": etag}
+
+    async def _v1_create(self, body: bytes | None) -> Response:
+        """Создать объект. `expected_rev=0` — «объекта быть не должно»."""
+        try:
+            payload = _json(body)
+        except ValueError as error:
+            return 400, _v1_error("invalid_body", str(error))
+        payload.setdefault("id", uuid4().hex)
+        try:
+            entity = Entity.model_validate(payload)
+        except ValueError as error:
+            return 400, _v1_error("invalid_entity", str(error))
+        errors = await self.product.core.storage.upsert(entity, expected_rev=0)
+        if errors:
+            if any(error.code is ErrorCode.CONFLICT for error in errors):
+                return await self._conflict(str(entity.id))
+            return 422, {"errors": [_dump(error) for error in errors]}
+        saved = await self.product.core.get(entity.id)
+        if saved is None:  # pragma: no cover - запись прошла, объект есть
+            raise RuntimeError(f"object {entity.id!r} disappeared after write")
+        _journal(self.product, make_entry("create", None, saved))
+        return 201, {"id": str(saved.id), "rev": saved.rev}, {"ETag": _etag(saved)}
+
+    async def _v1_delete(
+        self,
+        entity_id: str,
+        headers: Mapping[str, str] | None,
+    ) -> Response:
+        """Удалить объект (tombstone) по политике ядра: отказ при живых ссылках."""
+        expected, failure = await self._if_match(entity_id, headers)
+        if failure is not None:
+            return failure
+        before = await self.product.core.get(EntityId(entity_id))
+        errors = await tombstone_entity(
+            self.product.core.storage, EntityId(entity_id), expected_rev=expected
+        )
+        if errors:
+            if any(error.code is ErrorCode.REFERENCE_IN_USE for error in errors):
+                return 409, {
+                    "error": {
+                        "code": "reference_in_use",
+                        "message": errors[0].detail,
+                        "axis": errors[0].axis,
+                        "entity_id": entity_id,
+                    }
+                }
+            if any(error.code is ErrorCode.CONFLICT for error in errors):
+                return await self._conflict(entity_id)
+            return 422, {"errors": [_dump(error) for error in errors]}
+        # `get` не показывает tombstone, поэтому снимок «после» берём из
+        # выборки с удалёнными: в журнале нужна ревизия, которую поставила
+        # запись, иначе откат упрётся в CONFLICT.
+        stored = await self.product.core.storage.list_entities(include_deleted=True)
+        after = next((item for item in stored if str(item.id) == entity_id), None)
+        _journal(self.product, make_entry("delete", before, after))
+        return 200, {"deleted": entity_id}
 
     async def _v1_put_object(
         self,
@@ -580,6 +643,12 @@ class HttpApi:
         except RuntimeError as error:  # плагины бэкендов
             return 422, {"error": str(error)}
         return 200, json.loads(result.model_dump_json())
+
+
+def _journal(product: Product, entry: Any) -> None:
+    """Записать действие в журнал, если хранилище его ведёт."""
+    if product.journal is not None:
+        product.journal.append([entry])
 
 
 #: ETag в v1 — ревизия объекта: `"r5"` (ADR-0021). Хеш тела не годится:

@@ -375,3 +375,77 @@ def test_undo_without_journal_entries_is_404(server: tuple[int, Any]) -> None:
     status, reply, _ = request(port, "POST", "/api/v1/undo")
     assert status == 404
     assert reply["error"]["code"] == "journal_empty"
+
+
+def test_create_object_returns_etag_and_is_undoable(server: tuple[int, Any]) -> None:
+    port, _ = server
+    status, reply, headers = request(
+        port, "POST", "/api/v1/objects", body={"kind": "note", "scalars": {"title": "Новая"}}
+    )
+    assert status == 201, reply
+    assert headers["etag"] == '"r1"'
+    new_id = reply["id"]
+
+    _, card, _ = request(port, "GET", f"/api/v1/objects/{new_id}")
+    assert card["entity"]["scalars"]["title"] == "Новая"
+
+    status, undone, _ = request(port, "POST", "/api/v1/undo")
+    assert status == 200
+    assert undone["undone"]["kind"] == "create"
+    assert request(port, "GET", f"/api/v1/objects/{new_id}")[0] == 404
+
+
+def test_delete_refuses_when_referenced(server: tuple[int, Any]) -> None:
+    """ADR-0025 ядра: цель со живыми ссылками удалить нельзя."""
+    port, _ = server
+    status, reply, _ = request(port, "DELETE", "/api/v1/objects/n2")
+    assert status == 409
+    assert reply["error"]["code"] == "reference_in_use"
+    assert reply["error"]["axis"] == "links"
+    assert request(port, "GET", "/api/v1/objects/n2")[0] == 200
+
+
+def test_delete_moves_to_tombstone_and_undo_restores(server: tuple[int, Any]) -> None:
+    port, _ = server
+    status, reply, _ = request(
+        port, "POST", "/api/v1/objects", body={"kind": "note", "scalars": {"title": "Временная"}}
+    )
+    assert status == 201
+    new_id = reply["id"]
+    _, _, headers = request(port, "GET", f"/api/v1/objects/{new_id}")
+
+    status, deleted, _ = request(
+        port, "DELETE", f"/api/v1/objects/{new_id}", headers={"If-Match": headers["etag"]}
+    )
+    assert status == 200, deleted
+    assert request(port, "GET", f"/api/v1/objects/{new_id}")[0] == 404
+
+    status, undone, _ = request(port, "POST", "/api/v1/undo")
+    assert status == 200
+    assert undone["undone"]["kind"] == "delete"
+    _, restored, _ = request(port, "GET", f"/api/v1/objects/{new_id}")
+    assert restored["entity"]["scalars"]["title"] == "Временная"
+
+
+def test_delete_with_stale_etag_conflicts(server: tuple[int, Any]) -> None:
+    port, _ = server
+    status, reply, headers = request(port, "POST", "/api/v1/objects", body={"kind": "note"})
+    new_id = reply["id"]
+    stale = headers["etag"]
+    assert (
+        request(
+            port,
+            "PUT",
+            f"/api/v1/objects/{new_id}",
+            headers={"If-Match": stale},
+            body={"kind": "note", "scalars": {"title": "правка"}},
+        )[0]
+        == 200
+    )
+
+    status, reply, _ = request(
+        port, "DELETE", f"/api/v1/objects/{new_id}", headers={"If-Match": stale}
+    )
+    assert status == 409
+    assert reply["error"]["code"] == "conflict"
+    assert reply["current"]["etag"] == '"r2"'
