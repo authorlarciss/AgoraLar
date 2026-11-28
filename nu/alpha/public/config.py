@@ -12,15 +12,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-#: Имя встроенного бэкенда ядра (без плагинов).
+#: Имя встроенного бэкенда ядра (без плагинов): эталон для тестов и демо.
 BUILTIN_STORE = "memory"
+
+#: Бэкенд по умолчанию для продукта. SQLite, а не json: инкрементальная
+#: запись, индексы по фасетам и ссылкам, открытие на порядок быстрее
+#: (замеры в `scripts/bench.py`). `json` остаётся в комплекте — он удобен для
+#: переносимого файла, но архив по умолчанию живёт в sqlite.
+DEFAULT_STORE = "sqlite"
 
 
 @dataclass(frozen=True, slots=True)
 class Config:
     """Настройки продукта."""
 
-    store: str = BUILTIN_STORE
+    store: str = DEFAULT_STORE
     data: Path | None = None
     plugins: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
 

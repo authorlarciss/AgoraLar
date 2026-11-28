@@ -4,14 +4,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from nu.psi.contracts.alpha import BUILTIN_STORE, Config
+from nu.psi.contracts.alpha import BUILTIN_STORE, DEFAULT_STORE, Config
 
 
-def test_defaults_to_builtin_store() -> None:
+def test_defaults_to_sqlite_store() -> None:
+    """Архив по умолчанию — sqlite: json остаётся, но не как дефолт."""
     config = Config()
-    assert config.store == BUILTIN_STORE
+    assert config.store == DEFAULT_STORE == "sqlite"
     assert config.data is None
-    assert config.options_for(BUILTIN_STORE) == {}
+    assert config.options_for(DEFAULT_STORE) == {}
+
+
+def test_builtin_store_is_still_memory() -> None:
+    assert BUILTIN_STORE == "memory", "эталон ядра для тестов и демо не менялся"
 
 
 def test_options_for_plugin_section_and_data() -> None:

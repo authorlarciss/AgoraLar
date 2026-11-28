@@ -325,7 +325,7 @@ def test_store_show_without_config(
     assert run_cli("store", "show") == 0
     out = capsys.readouterr().out
     assert "config: <нет файла" in out
-    assert "store: memory" in out
+    assert "store: sqlite" in out, "без конфига продукт живёт в sqlite"
 
 
 def test_store_use_writes_config_and_show_reads_it(

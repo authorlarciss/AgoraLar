@@ -41,12 +41,15 @@ def build_product(
 
     Источники настроек: явные аргументы поверх `config`, `config` поверх
     значений по умолчанию. Без конфига и аргументов — эталонное in-memory
-    хранилище ядра. Имя плагина берётся из реестра; если его нет или он
-    отклонён, поднимается `UnknownPluginError` с причиной.
+    хранилище ядра: это библиотечный вход для тестов и плагинов, файлы он не
+    создаёт. Пользовательский путь (`agoralar`, без `--store` и без конфига)
+    берёт `Config()`, а там дефолт — sqlite (`DEFAULT_STORE`).
+    Имя плагина берётся из реестра; если его нет или он отклонён, поднимается
+    `UnknownPluginError` с причиной.
     """
     _setup_logging()
     registry = registry or PluginRegistry(core_contract=KERNEL_CONTRACT_VERSION)
-    settings = config or Config()
+    settings = config or Config(store=BUILTIN_STORE)
     chosen = store or settings.store
     merged: dict[str, Any] = {**settings.options_for(chosen), **(options or {})}
 
