@@ -30,10 +30,13 @@ from axislar_core.contracts import (
 
 from nu.psi.contracts.beta import (
     FacetPatch,
+    JournalError,
     bulk_patch,
     entity_links,
+    journaled_patch,
     list_objects,
     store_stats,
+    undo_last,
 )
 from nu.psi.contracts.iota import ParseError, parse_filter
 from nu.psi.contracts.mu import CONTRACT_VERSION, KERNEL_CONTRACT_VERSION, __version__
@@ -198,6 +201,8 @@ class HttpApi:
             return await self._v1_put_object(parts[1], body, headers)
         if head == "patch" and len(parts) == 1 and method == "POST":
             return await self._v1_patch(body)
+        if head == "undo" and len(parts) == 1 and method == "POST":
+            return await self._v1_undo()
         if head == "objects" and len(parts) == 3 and parts[2] == "links" and method == "GET":
             return await self._v1_links(parts[1], params)
         if head == "stats" and len(parts) == 1 and method == "GET":
@@ -312,19 +317,41 @@ class HttpApi:
                 )
             expected[str(key)] = value
 
-        result = await bulk_patch(
-            self.product.core.storage,
-            ids,
-            patches,
-            expected_revs=expected or None,
-            force=bool(payload.get("force", False)),
-        )
+        force = bool(payload.get("force", False))
+        storage = self.product.core.storage
+        journal = self.product.journal
+        if journal is None:
+            result = await bulk_patch(
+                storage, ids, patches, expected_revs=expected or None, force=force
+            )
+        else:
+            result = await journaled_patch(
+                storage,
+                journal,
+                ids,
+                patches,
+                expected_revs=expected or None,
+                force=force,
+            )
         return 200, {
             "changed": [{"id": key, "rev": rev} for key, rev in result.changed],
             "conflicts": list(result.conflicts),
             "skipped": [{"id": key, "axis": axis} for key, axis in result.skipped],
             "errors": [_dump(error) for error in result.errors],
         }
+
+    async def _v1_undo(self) -> Response:
+        """Откат последней журнальной правки (кнопка «отменить» в UI)."""
+        journal = self.product.journal
+        if journal is None:
+            return 409, _v1_error("journal_unavailable", "у этого хранилища нет журнала (memory)")
+        try:
+            entry = await undo_last(self.product.core.storage, journal)
+        except JournalError as error:
+            return 409, _v1_error("journal_conflict", str(error))
+        if entry is None:
+            return 404, _v1_error("journal_empty", "откатывать нечего")
+        return 200, {"undone": {"kind": entry.kind, "entity_id": entry.entity_id}}
 
     def _patch_route_error(self, payload: dict[str, Any]) -> Response:
         """`ids` и `filter` взаимоисключающие, и один из них обязателен."""

@@ -25,6 +25,7 @@ from nu.beta.public import bulk_patch as bulk_patch
 from nu.beta.public import discover as discover
 from nu.beta.public import entity_links as entity_links
 from nu.beta.public import journal_path_for as journal_path_for
+from nu.beta.public import journaled_patch as journaled_patch
 from nu.beta.public import list_objects as list_objects
 from nu.beta.public import load_state as load_state
 from nu.beta.public import make_entry as make_entry
@@ -48,6 +49,7 @@ __all__ = [
     "FacetPatch",
     "apply_patches",
     "bulk_patch",
+    "journaled_patch",
     "ScalarStats",
     "StoreStats",
     "entity_links",

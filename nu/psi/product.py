@@ -8,12 +8,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, cast
 
 from axislar_core.contracts import Core, IStorageEngine, build_core
 
 from nu.psi.contracts.alpha import BUILTIN_STORE, Config
-from nu.psi.contracts.beta import PluginRegistry
+from nu.psi.contracts.beta import Journal, PluginRegistry, journal_path_for
 from nu.psi.contracts.mu import KERNEL_CONTRACT_VERSION
 from nu.psi.contracts.sigma import LoggingConfig, SigmaResolver
 
@@ -25,6 +26,8 @@ class Product:
     core: Core
     registry: PluginRegistry
     store: str
+    #: Журнал правок рядом с данными; `None` — хранилище без файла (memory).
+    journal: Journal | None = None
 
     def describe(self) -> str:
         plugins = ", ".join(manifest.name for manifest in self.registry.available) or "<нет>"
@@ -56,12 +59,17 @@ def build_product(
     if chosen == BUILTIN_STORE:
         return Product(core=build_core(), registry=registry, store=BUILTIN_STORE)
 
+    base = settings.data.parent if settings.data is not None else Path.cwd()
+    journal = Journal(journal_path_for(base))
+
     engine = cast(IStorageEngine, registry.create(chosen, merged))
     if not isinstance(engine, IStorageEngine):
         raise TypeError(
             f"plugin {chosen!r} returned {type(engine).__name__}, expected IStorageEngine"
         )
-    return Product(core=build_core(storage=engine), registry=registry, store=chosen)
+    return Product(
+        core=build_core(storage=engine), registry=registry, store=chosen, journal=journal
+    )
 
 
 def _setup_logging() -> None:

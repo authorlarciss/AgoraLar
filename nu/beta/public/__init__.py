@@ -19,6 +19,7 @@ from nu.beta.public.patch import BulkPatchResult as BulkPatchResult
 from nu.beta.public.patch import FacetPatch as FacetPatch
 from nu.beta.public.patch import apply_patches as apply_patches
 from nu.beta.public.patch import bulk_patch as bulk_patch
+from nu.beta.public.patch import journaled_patch as journaled_patch
 from nu.beta.public.registry import ENTRY_GROUPS as ENTRY_GROUPS
 from nu.beta.public.registry import PluginRegistry as PluginRegistry
 from nu.beta.public.registry import RegistryState as RegistryState
@@ -50,6 +51,7 @@ __all__ = [
     "FacetPatch",
     "apply_patches",
     "bulk_patch",
+    "journaled_patch",
     "LinkRow",
     "ObjectList",
     "ObjectRow",

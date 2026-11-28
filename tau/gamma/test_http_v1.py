@@ -347,3 +347,31 @@ def test_patch_requires_exactly_one_target(server: tuple[int, Any]) -> None:
     status, reply, _ = request(port, "POST", "/api/v1/patch", body={"ids": ["n1"], "ops": []})
     assert status == 400
     assert reply["error"]["code"] == "invalid_ops"
+
+
+def test_patch_is_journalled_and_undo_restores(server: tuple[int, Any]) -> None:
+    """Правка из UI попадает в журнал; «отменить» возвращает прежние фасеты."""
+    port, _ = server
+    body = {
+        "ids": ["n1"],
+        "ops": [{"axis": "tags", "mode": "add", "values": ["neo"]}],
+        "force": True,
+    }
+    assert request(port, "POST", "/api/v1/patch", body=body)[0] == 200
+    _, after, _ = request(port, "GET", "/api/v1/objects/n1")
+    assert "neo" in [value["value"] for value in after["entity"]["facets"]["tags"]]
+
+    status, reply, _ = request(port, "POST", "/api/v1/undo")
+    assert status == 200, reply
+    assert reply["undone"]["kind"] == "patch"
+
+    _, restored, _ = request(port, "GET", "/api/v1/objects/n1")
+    values = [value["value"] for value in restored["entity"]["facets"]["tags"]]
+    assert values == ["noir"], "фасеты вернулись к состоянию до правки"
+
+
+def test_undo_without_journal_entries_is_404(server: tuple[int, Any]) -> None:
+    port, _ = server
+    status, reply, _ = request(port, "POST", "/api/v1/undo")
+    assert status == 404
+    assert reply["error"]["code"] == "journal_empty"

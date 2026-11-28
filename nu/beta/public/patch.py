@@ -26,6 +26,8 @@ from axislar_core.contracts import (
     ReferenceValue,
 )
 
+from nu.beta.public.journal import Journal, make_entry
+
 
 @dataclass(frozen=True, slots=True)
 class FacetPatch:
@@ -146,6 +148,38 @@ async def bulk_patch(
         skipped=tuple(skipped),
         errors=tuple(errors),
     )
+
+
+async def journaled_patch(
+    storage: IStorageEngine,
+    journal: Journal,
+    ids: Sequence[EntityId],
+    patches: Sequence[FacetPatch],
+    *,
+    expected_revs: Mapping[str, int] | None = None,
+    force: bool = False,
+) -> BulkPatchResult:
+    """`bulk_patch` + запись в журнал — один путь для CLI и HTTP.
+
+    В журнал попадают только реально изменённые объекты: снимок «до/после»
+    для пропущенного объекта выглядел бы как правка и откат крутил ревизию.
+    """
+    before = [await storage.get(entity_id) for entity_id in ids]
+    outcome = await bulk_patch(
+        storage,
+        ids,
+        patches,
+        expected_revs=expected_revs,
+        force=force,
+    )
+    changed = {key for key, _ in outcome.changed}
+    entries = [
+        make_entry("patch", old, await storage.get(entity_id))
+        for entity_id, old in zip(ids, before, strict=True)
+        if old is not None and str(entity_id) in changed
+    ]
+    journal.append(entries)
+    return outcome
 
 
 def _value(axis: str, raw: str, current: tuple[FacetValue, ...]) -> FacetValue:

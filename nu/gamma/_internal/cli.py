@@ -60,8 +60,8 @@ from nu.psi.contracts.beta import (
     PluginRegistry,
     SyncState,
     UnknownPluginError,
-    bulk_patch,
     journal_path_for,
+    journaled_patch,
     load_state,
     make_entry,
     record_sync,
@@ -640,15 +640,13 @@ async def run_patch(args: argparse.Namespace, product: Product, config: Config) 
         print("dry-run: ничего не записано (--apply, чтобы применить)")
         return 0
 
-    journal = journal_for(config)
-    before = [await product.core.get(entity_id) for entity_id in result.ids]
-    outcome = await bulk_patch(product.core.storage, result.ids, patches, force=args.force)
-    entries = [
-        make_entry("patch", old, await product.core.get(entity_id))
-        for entity_id, old in zip(result.ids, before, strict=True)
-        if old is not None
-    ]
-    journal.append(entries)
+    outcome = await journaled_patch(
+        product.core.storage,
+        journal_for(config),
+        result.ids,
+        patches,
+        force=args.force,
+    )
     print(f"изменено: {len(outcome.changed)}, конфликтов: {len(outcome.conflicts)}")
     if outcome.skipped:
         axes = sorted({axis for _, axis in outcome.skipped})
