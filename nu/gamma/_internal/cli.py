@@ -889,6 +889,15 @@ async def run(args: argparse.Namespace) -> int:
     if args.command == "store-use":
         return use_store(args, config)
 
+    if args.command == "desktop":
+        from nu.gamma._internal.desktop import DesktopUnavailableError, run_desktop
+
+        try:
+            run_desktop(product, port=args.port)
+        except DesktopUnavailableError as error:
+            raise CliError(str(error)) from error
+        return 0
+
     if args.command == "serve":
         from nu.psi.contracts.gamma import HttpResolver
 
@@ -1094,6 +1103,12 @@ def build_parser() -> argparse.ArgumentParser:
         "Без токена сервер слушает только loopback",
     )
     serve.set_defaults(command="serve")
+
+    desktop = subparsers.add_parser(
+        "desktop", help="локальное окно с интерфейсом (нужен agoralar[desktop])"
+    )
+    desktop.add_argument("--port", type=int, default=0, help="0 — свободный порт")
+    desktop.set_defaults(command="desktop")
 
     sync = subparsers.add_parser("sync", help="синхронизировать хранилище с источником")
     sync.add_argument("--source", default="filesystem", help="имя плагина-источника")

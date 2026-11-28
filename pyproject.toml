@@ -36,6 +36,9 @@ agoralar-source-http = { path = "plugins/source_http", editable = true }
 agoralar-analyzer-text = { path = "plugins/analyzer_text", editable = true }
 
 [project.optional-dependencies]
+# Десктоп-оболочка (5.2): окно на системном webview. Необязательная: без неё
+# продукт работает как локальный сервис и в браузере.
+desktop = ["pywebview>=5.0"]
 dev = [
     "pre-commit>=3.6",
     "ruff>=0.6",
@@ -92,6 +95,11 @@ module = [
 ]
 ignore_missing_imports = true
 follow_imports = "skip"
+
+# pywebview — необязательная зависимость десктоп-оболочки.
+[[tool.mypy.overrides]]
+module = ["webview", "webview.*"]
+ignore_missing_imports = true
 
 # ---------- Ruff ----------
 [tool.ruff]
