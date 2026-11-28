@@ -7,7 +7,17 @@
 // перезагрузить, переслать ссылкой и вернуться кнопкой «назад» без потери
 // фильтров.
 
-const state = { offset: 0, limit: 50, filters: [], total: 0, selected: null };
+const state = {
+  offset: 0,
+  limit: 50,
+  filters: [],
+  total: 0,
+  selected: null,
+  entity: null,
+  etag: null,
+  axes: [],
+  scalars: [],
+};
 
 const $ = (id) => document.getElementById(id);
 
@@ -192,37 +202,240 @@ async function selectObject(id) {
   const card = $('card');
   const links = $('links');
   try {
-    const [object, edges] = await Promise.all([
-      api(`/api/v1/objects/${encodeURIComponent(id)}`),
+    const [response, edges] = await Promise.all([
+      fetch(`/api/v1/objects/${encodeURIComponent(id)}`, {
+        headers: { Accept: 'application/json' },
+      }),
       api(`/api/v1/objects/${encodeURIComponent(id)}/links`),
     ]);
-    const entity = object.entity;
-    card.replaceChildren();
-    const title = document.createElement('p');
-    const strong = document.createElement('strong');
-    strong.textContent = entity.scalars.title || entity.id;
-    title.append(strong, ` · ${entity.kind}`);
-    card.append(title);
-
-    const facets = document.createElement('p');
-    facets.className = 'muted';
-    const axes = Object.entries(entity.facets || {});
-    facets.textContent = axes.length
-      ? axes
-          .map(([axis, values]) => `${axis}: ${values.map((v) => v.value ?? v.target).join(', ')}`)
-          .join(' · ')
-      : 'фасетов нет (разреженный объект)';
-    card.append(facets);
-
-    $('raw').textContent = JSON.stringify(entity, null, 2);
-    $('raw-wrap').hidden = false;
-
+    const object = await response.json();
+    if (!response.ok) throw new Error(object.error?.message || `HTTP ${response.status}`);
+    state.entity = object.entity;
+    state.etag = response.headers.get('ETag');
+    renderCard(card);
     links.replaceChildren();
     addLinkRow(links, 'входящие', edges.incoming, 'in');
     addLinkRow(links, 'исходящие', edges.outgoing, 'out');
   } catch (error) {
     showError(card, error.message);
   }
+}
+
+function renderCard(card) {
+  const entity = state.entity;
+  card.replaceChildren();
+  const title = document.createElement('p');
+  const strong = document.createElement('strong');
+  strong.textContent = entity.scalars.title || entity.id;
+  title.append(strong, ` · ${entity.kind} `);
+  const edit = document.createElement('button');
+  edit.type = 'button';
+  edit.textContent = 'править';
+  edit.addEventListener('click', () => openEditor(card));
+  title.append(edit);
+  card.append(title);
+
+  const facets = document.createElement('p');
+  facets.className = 'muted';
+  const axes = Object.entries(entity.facets || {});
+  facets.textContent = axes.length
+    ? axes.map(([axis, values]) => `${axis}: ${values.map((v) => v.value ?? v.target).join(', ')}`).join(' · ')
+    : 'фасетов нет (разреженный объект)';
+  card.append(facets);
+
+  $('raw').textContent = JSON.stringify(entity, null, 2);
+  $('raw-wrap').hidden = false;
+}
+
+// --------------------------------------------------------------- правка (3.1)
+
+function axisValues(axis, values) {
+  return (values || []).map((value) => value.value ?? value.target ?? '').join(', ');
+}
+
+function parseValues(axis, raw) {
+  const pieces = raw
+    .split(',')
+    .map((piece) => piece.trim())
+    .filter(Boolean);
+  if (axis.kind === 'measurable') {
+    return pieces.map((piece) => {
+      const number = Number(piece);
+      if (!Number.isFinite(number)) throw new Error(`${axis.name}: ожидается число`);
+      return { kind: 'measurable', value: number };
+    });
+  }
+  if (axis.kind === 'reference') {
+    return pieces.map((piece) => ({ kind: 'reference', target: piece }));
+  }
+  return pieces.map((piece) => ({ kind: 'categorical', value: piece }));
+}
+
+function fieldError(text) {
+  const error = document.createElement('span');
+  error.className = 'field-error';
+  error.textContent = text;
+  return error;
+}
+
+function openEditor(card) {
+  const entity = state.entity;
+  const form = document.createElement('form');
+  form.className = 'editor';
+
+  for (const axis of state.axes) {
+    const row = document.createElement('label');
+    row.className = 'field';
+    const name = document.createElement('span');
+    name.textContent = `${axis.name} (${axis.kind})`;
+    const input = document.createElement('input');
+    input.value = axisValues(axis, entity.facets?.[axis.name]);
+    input.placeholder = 'через запятую; пусто — значение отсутствует';
+    input.dataset.axis = axis.name;
+    row.append(name, input);
+    form.append(row);
+  }
+  for (const scalar of state.scalars) {
+    const row = document.createElement('label');
+    row.className = 'field';
+    const name = document.createElement('span');
+    name.textContent = `${scalar.name} (скаляр)`;
+    const input = document.createElement('input');
+    input.value = entity.scalars?.[scalar.name] ?? '';
+    input.dataset.scalar = scalar.name;
+    row.append(name, input);
+    form.append(row);
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'editor-actions';
+  const save = document.createElement('button');
+  save.type = 'submit';
+  save.textContent = 'сохранить';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.textContent = 'отмена';
+  cancel.addEventListener('click', () => renderCard(card));
+  actions.append(save, cancel);
+  form.append(actions);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    for (const node of form.querySelectorAll('.field-error')) node.remove();
+    const payload = {
+      kind: entity.kind,
+      facets: {},
+      scalars: {},
+      artifacts: entity.artifacts || {},
+    };
+    let invalid = false;
+    for (const input of form.querySelectorAll('input[data-axis]')) {
+      const axis = state.axes.find((item) => item.name === input.dataset.axis);
+      try {
+        const values = parseValues(axis, input.value);
+        if (values.length) payload.facets[axis.name] = values;
+      } catch (error) {
+        input.after(fieldError(error.message));
+        invalid = true;
+      }
+    }
+    for (const input of form.querySelectorAll('input[data-scalar]')) {
+      const value = input.value.trim();
+      if (value) payload.scalars[input.dataset.scalar] = value;
+    }
+    if (invalid) return;
+    const result = await saveEntity(entity.id, payload);
+    if (result.ok) {
+      await selectObject(entity.id);
+      return;
+    }
+    if (result.conflict) {
+      const choice = await askConflict(result.conflict.current);
+      if (choice === 'mine') {
+        const retry = await saveEntity(entity.id, payload, result.conflict.current?.etag);
+        if (retry.ok) await selectObject(entity.id);
+        else showError(card, conflictMessage(retry));
+      } else if (choice === 'theirs') {
+        await selectObject(entity.id);
+      }
+      return;
+    }
+    for (const error of result.errors || []) {
+      if (error.axis) {
+        const input = form.querySelector(`input[data-axis="${error.axis}"]`);
+        if (input) {
+          input.after(fieldError(error.detail || error.code || 'ошибка'));
+          continue;
+        }
+      }
+      showError(card, error.detail || error.message || 'не удалось сохранить');
+    }
+  });
+
+  card.replaceChildren(form);
+  const first = form.querySelector('input');
+  if (first) first.focus();
+}
+
+async function saveEntity(id, payload, etag) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (etag) headers['If-Match'] = etag;
+  const response = await fetch(`/api/v1/objects/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (response.status === 409) return { conflict: body };
+  if (!response.ok) return { errors: body.errors || [body.error || {}] };
+  return { ok: body };
+}
+
+function conflictMessage(result) {
+  const error = (result.errors || [])[0] || {};
+  return error.detail || error.message || 'конфликт: объект изменился';
+}
+
+function askConflict(current) {
+  return new Promise((resolve) => {
+    const mask = document.createElement('div');
+    mask.className = 'dialog-mask';
+    const box = document.createElement('div');
+    box.className = 'dialog';
+    const text = document.createElement('p');
+    text.textContent = 'Объект изменили, пока вы правили. Ваша правка не сохранена.';
+    const theirs = document.createElement('pre');
+    theirs.textContent = current
+      ? JSON.stringify(current.entity.facets || {}, null, 2)
+      : 'текущее состояние недоступно';
+    const actions = document.createElement('div');
+    actions.className = 'dialog-actions';
+    const mine = document.createElement('button');
+    mine.type = 'button';
+    mine.textContent = 'всё равно сохранить моё';
+    const take = document.createElement('button');
+    take.type = 'button';
+    take.textContent = 'взять серверное';
+    const close = () => {
+      mask.remove();
+      resolve(null);
+    };
+    mine.addEventListener('click', () => {
+      mask.remove();
+      resolve('mine');
+    });
+    take.addEventListener('click', () => {
+      mask.remove();
+      resolve('theirs');
+    });
+    actions.append(mine, take);
+    box.append(text, theirs, actions);
+    mask.append(box);
+    mask.addEventListener('click', (event) => {
+      if (event.target === mask) close();
+    });
+    document.body.append(mask);
+  });
 }
 
 // ------------------------------------------------------------------ статистика
@@ -300,9 +513,11 @@ async function loadStats() {
 async function loadAxes() {
   try {
     const schema = await api('/schema');
+    state.axes = schema.schema.axes || [];
+    state.scalars = schema.schema.scalars || [];
     const list = $('axis-list');
     list.replaceChildren();
-    for (const axis of schema.schema.axes || []) {
+    for (const axis of state.axes) {
       const option = document.createElement('option');
       option.value = `${axis.name}:exists`;
       list.append(option);

@@ -56,3 +56,20 @@ th { font-weight: 600; opacity: .7; }
 .note { border-left: 3px solid currentColor; padding: .4rem .6rem; opacity: .85; }
 footer { padding: 0 1rem 1.5rem; }
 .err { color: crimson; }
+
+/* Правка (3.1): форма в карточке и диалог конфликта. Без зависимостей. */
+.editor { display: flex; flex-direction: column; gap: 0.5rem; }
+.field { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.85rem; }
+.field input { font: inherit; padding: 0.3rem 0.4rem; border: 1px solid #ccc; border-radius: 4px; }
+.field-error { color: #b00020; font-size: 0.8rem; }
+.editor-actions { display: flex; gap: 0.5rem; margin-top: 0.25rem; }
+.dialog-mask {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35);
+  display: flex; align-items: center; justify-content: center; z-index: 10;
+}
+.dialog {
+  background: #fff; padding: 1rem; border-radius: 6px; max-width: 32rem;
+  display: flex; flex-direction: column; gap: 0.5rem;
+}
+.dialog pre { max-height: 12rem; overflow: auto; font-size: 0.75rem; background: #f6f6f6; }
+.dialog-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
