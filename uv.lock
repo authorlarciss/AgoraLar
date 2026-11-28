@@ -13,6 +13,7 @@ dependencies = [
     { name = "agoralar-source-sql" },
     { name = "agoralar-store-json" },
     { name = "agoralar-store-sqlite" },
+    { name = "axislar-contract" },
     { name = "axislar-core" },
     { name = "packaging" },
 ]
@@ -37,7 +38,8 @@ requires-dist = [
     { name = "agoralar-source-sql", editable = "plugins/source_sql" },
     { name = "agoralar-store-json", editable = "plugins/store_json" },
     { name = "agoralar-store-sqlite", editable = "plugins/store_sqlite" },
-    { name = "axislar-core", specifier = ">=0.14,<0.15" },
+    { name = "axislar-contract", specifier = ">=6,<7" },
+    { name = "axislar-core", specifier = ">=0.15,<1" },
     { name = "import-linter", marker = "extra == 'dev'", specifier = ">=2.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "packaging", specifier = ">=24.0" },
@@ -65,15 +67,17 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-source-filesystem"
-version = "0.3.6"
+version = "0.3.7"
 source = { editable = "plugins/source_filesystem" }
 dependencies = [
+    { name = "axislar-contract" },
     { name = "axislar-core" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "axislar-core", specifier = ">=0.14,<0.15" },
+    { name = "axislar-contract", specifier = ">=6,<7" },
+    { name = "axislar-core", specifier = ">=0.15,<1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
@@ -83,15 +87,17 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-source-http"
-version = "0.2.6"
+version = "0.2.7"
 source = { editable = "plugins/source_http" }
 dependencies = [
+    { name = "axislar-contract" },
     { name = "axislar-core" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "axislar-core", specifier = ">=0.14,<0.15" },
+    { name = "axislar-contract", specifier = ">=6,<7" },
+    { name = "axislar-core", specifier = ">=0.15,<1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
@@ -101,15 +107,17 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-source-markdown"
-version = "0.1.2"
+version = "0.1.3"
 source = { editable = "plugins/source_markdown" }
 dependencies = [
+    { name = "axislar-contract" },
     { name = "axislar-core" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "axislar-core", specifier = ">=0.14,<0.15" },
+    { name = "axislar-contract", specifier = ">=6,<7" },
+    { name = "axislar-core", specifier = ">=0.15,<1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
@@ -119,15 +127,17 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-source-sql"
-version = "0.2.6"
+version = "0.2.7"
 source = { editable = "plugins/source_sql" }
 dependencies = [
+    { name = "axislar-contract" },
     { name = "axislar-core" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "axislar-core", specifier = ">=0.14,<0.15" },
+    { name = "axislar-contract", specifier = ">=6,<7" },
+    { name = "axislar-core", specifier = ">=0.15,<1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
@@ -137,15 +147,17 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-store-json"
-version = "0.5.6"
+version = "0.5.7"
 source = { editable = "plugins/store_json" }
 dependencies = [
+    { name = "axislar-contract" },
     { name = "axislar-core" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "axislar-core", specifier = ">=0.14,<0.15" },
+    { name = "axislar-contract", specifier = ">=6,<7" },
+    { name = "axislar-core", specifier = ">=0.15,<1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
@@ -155,15 +167,17 @@ provides-extras = ["dev"]
 
 [[package]]
 name = "agoralar-store-sqlite"
-version = "0.4.6"
+version = "0.4.7"
 source = { editable = "plugins/store_sqlite" }
 dependencies = [
+    { name = "axislar-contract" },
     { name = "axislar-core" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "axislar-core", specifier = ">=0.14,<0.15" },
+    { name = "axislar-contract", specifier = ">=6,<7" },
+    { name = "axislar-core", specifier = ">=0.15,<1" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
@@ -244,15 +258,25 @@ wheels = [
 ]
 
 [[package]]
+name = "axislar-contract"
+version = "6.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/27/c9/59271b832f2300bcbd4e22a39e6426350ba70270ecbcf46ac10dad99ddbd/axislar_contract-6.0.0.tar.gz", hash = "sha256:b9666909b903f05ac671e85d339a4806194352d31a6db80050ca2a9ad3f6a4c6", size = 2908, upload-time = "2026-11-28T08:55:31.676Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/62/90/b5db3514ae54c2e092ba7a9b2a401a404052460a0b8887882d82554438c3/axislar_contract-6.0.0-py3-none-any.whl", hash = "sha256:095d8ba2109fa9bb3f19d095855180e493a94af1610302e307ba76026250c3e2", size = 3450, upload-time = "2026-11-28T08:55:30.15Z" },
+]
+
+[[package]]
 name = "axislar-core"
-version = "0.14.2"
+version = "0.15.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "axislar-contract" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0f/6a/bec2cafbe62bf529b7049b0b8c614ad56ee92cca05c2588058b8a2e08a62/axislar_core-0.14.2.tar.gz", hash = "sha256:3a8d81812ef872563c05a1fa10f9acb5bf3e2f8d859bf0223401b4aea355863d", size = 54549, upload-time = "2026-11-27T19:42:38.784Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/c8/8822e8873b2c5c57f8a090a023303a1f7c3be43d1d4f9f278197f39471f5/axislar_core-0.15.0.tar.gz", hash = "sha256:8c17920f091f75854723e32f6ba3fdcefbd5f6d9b65b3813232c2c52b65ac568", size = 54853, upload-time = "2026-11-28T08:55:34.799Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b6/a0/0d48db61410b39bfd9ec52b92663ce963ebc3d7e058043076c2c8da1832e/axislar_core-0.14.2-py3-none-any.whl", hash = "sha256:355261bdd981f89ed61fb7ecceb2cc0afd5aced84634a80b234eab9ac88f0a87", size = 71595, upload-time = "2026-11-27T19:42:37.268Z" },
+    { url = "https://files.pythonhosted.org/packages/52/80/964555ab59f4d6f87bc684fa2ef2c653e0288ce31ed7299563f88c72fb48/axislar_core-0.15.0-py3-none-any.whl", hash = "sha256:5a9b819b8e42a8c3da5af55869c7b47f5a1f8c4a79c29435a2bbe8b755059dbf", size = 71676, upload-time = "2026-11-28T08:55:33.013Z" },
 ]
 
 [[package]]

@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agoralar-source-sql"
-version = "0.2.6"
+version = "0.2.7"
 description = "SQL (sqlite) как источник объектов для AxisLar (плагин AgoraLar)"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.13,<3.15"
 # Ядро нужно на импорте контрактов; диапазон следует релизам ядра (контракт 6).
-dependencies = ["axislar-core>=0.14,<0.15"]
+dependencies = ["axislar-core>=0.15,<1", "axislar-contract>=6,<7"]
 
 [project.entry-points."agoralar.source"]
 sql = "agora_source_sql:plugin"

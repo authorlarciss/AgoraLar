@@ -41,7 +41,7 @@ help:
 	@echo "  make strip-template — снести template-обвязку при форке"
 	@echo "  make dist          — собрать дистрибутив продукта (переименованный пакет)"
 	@echo "  make dist-all      — дистрибутив продукта + колеса всех плагинов в dist/"
-	@echo "  make pin-core CORE — поднять диапазон axislar-core во всех проектах"
+	@echo "  make pin-contract CONTRACT — поднять диапазон axislar-contract везде"
 	@echo "  make docker-context — собрать контекст docker (wheel-ы ядра, продукта, плагинов)"
 	@echo "  make docker-build  — собрать образ продукта (docker)"
 	@echo "  make verify        — сквозная проверка из wheel: CLI + HTTP"
@@ -81,9 +81,9 @@ lint-imports:
 contracts:
 	$(PY) -m eta.sync_contracts
 
-pin-core:
-	@test -n "$(CORE)" || (echo "usage: make pin-core CORE=0.15.0" >&2; exit 2)
-	$(PY) -m eta.core_pins --core $(CORE)
+pin-contract:
+	@test -n "$(CONTRACT)" || (echo "usage: make pin-contract CONTRACT=7.0.0" >&2; exit 2)
+	$(PY) -m eta.contract_pins --contract $(CONTRACT)
 
 contracts-check:
 	$(PY) -m eta.sync_contracts --check
