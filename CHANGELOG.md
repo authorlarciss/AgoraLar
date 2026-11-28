@@ -7,7 +7,7 @@ project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.ht
 
 Продукт ответвлён от шаблона BaseLar v0.7.4; историю шаблона см. в BaseLar.
 
-## [Unreleased]
+## [0.30.0] - 2026-11-28
 
 ### Added
 
