@@ -652,3 +652,30 @@ def test_session_cookie_is_issued_and_tampering_rejected(server: tuple[int, Any]
     )
     assert status == 403
     assert "session cookie" in reply["error"]
+
+
+def test_api_contract_lists_endpoints_and_they_exist(server: tuple[int, Any]) -> None:
+    """ADR-0023 S1: перечень маршрутов — контракт, а не документация «на словах»."""
+    port, _ = server
+    status, reply, _ = request(port, "GET", "/api/v1")
+    assert status == 200
+    assert reply["api_version"] == "1"
+    assert reply["endpoints"], "перечень маршрутов пуст"
+
+    samples = {"id": "n1", "hash": "0" * 64}
+    for endpoint in reply["endpoints"]:
+        path = endpoint["path"]
+        for key, value in samples.items():
+            path = path.replace("{" + key + "}", value)
+        status, reply, _ = request(
+            port,
+            endpoint["method"],
+            path,
+            body={} if endpoint["method"] in {"POST", "PUT"} else None,
+        )
+        assert status != 405, f"{endpoint['method']} {endpoint['path']} → 405"
+        if status == 404:
+            # 404 — это «объекта нет», а не «маршрута нет»: различаем по тексту.
+            error = reply.get("error") if isinstance(reply, dict) else {}
+            message = error.get("message", "") if isinstance(error, dict) else str(error)
+            assert "no v1 route" not in message, f"маршрут {endpoint['path']} не подключён"

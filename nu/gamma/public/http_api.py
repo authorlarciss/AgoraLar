@@ -38,6 +38,7 @@ from axislar_core.contracts import (
     tombstone_entity,
 )
 
+from nu.gamma.public.api_contract import API_VERSION, ENDPOINTS
 from nu.psi.contracts.beta import (
     FacetPatch,
     JournalError,
@@ -225,6 +226,11 @@ class HttpApi:
         if not parts:
             return 200, {
                 "api": "v1",
+                "api_version": API_VERSION,
+                "endpoints": [
+                    {"method": method, "path": path, "summary": summary}
+                    for method, path, summary in ENDPOINTS
+                ],
                 "product": __version__,
                 "product_contract": CONTRACT_VERSION,
                 "kernel_contract": KERNEL_CONTRACT_VERSION,
