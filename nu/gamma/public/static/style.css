@@ -73,3 +73,14 @@ footer { padding: 0 1rem 1.5rem; }
 }
 .dialog pre { max-height: 12rem; overflow: auto; font-size: 0.75rem; background: #f6f6f6; }
 .dialog-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+
+.batch {
+  display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-end;
+  padding: 0.5rem; margin-bottom: 0.5rem; background: #f6f6f6; border-radius: 6px;
+}
+.batch label { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.8rem; }
+.batch label.inline { flex-direction: row; align-items: center; gap: 0.3rem; }
+.batch input[type="text"], .batch select, .batch input:not([type]) {
+  font: inherit; padding: 0.25rem 0.35rem; border: 1px solid #ccc; border-radius: 4px;
+}
+.pick { margin-right: 0.35rem; }

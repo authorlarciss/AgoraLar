@@ -17,7 +17,11 @@ const state = {
   etag: null,
   axes: [],
   scalars: [],
+  checked: new Set(),
 };
+
+//: Сколько объектов можно выделить для массовой правки за раз.
+const BATCH_LIMIT = 500;
 
 const $ = (id) => document.getElementById(id);
 
@@ -131,7 +135,17 @@ function objectRow(row) {
   const id = document.createElement('code');
   id.textContent = row.id.slice(0, 8);
 
-  item.append(label, kind, id);
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.className = 'pick';
+  box.checked = state.checked.has(row.id);
+  box.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (box.checked) state.checked.add(row.id);
+    else state.checked.delete(row.id);
+    updateBatch();
+  });
+  item.append(box, label, kind, id);
   item.addEventListener('click', () => selectObject(row.id));
   return item;
 }
@@ -153,7 +167,12 @@ async function loadObjects() {
       empty.textContent = 'ничего не найдено';
       list.append(empty);
     }
+    const visible = new Set(page.objects.map((row) => row.id));
+    for (const id of [...state.checked]) {
+      if (!visible.has(id)) state.checked.delete(id);
+    }
     for (const row of page.objects) list.append(objectRow(row));
+    updateBatch();
     const from = page.total ? page.offset + 1 : 0;
     const to = page.offset + page.objects.length;
     $('range').textContent = `${from}–${to} из ${page.total}`;
@@ -245,6 +264,79 @@ function renderCard(card) {
 
   $('raw').textContent = JSON.stringify(entity, null, 2);
   $('raw-wrap').hidden = false;
+}
+
+// ------------------------------------------------------- массовая правка (3.2)
+
+function updateBatch() {
+  const panel = $('batch');
+  panel.hidden = state.checked.size === 0;
+  $('batch-count').textContent = String(state.checked.size);
+}
+
+function batchResult(text, isError) {
+  const line = $('batch-result');
+  line.hidden = !text;
+  line.textContent = text || '';
+  line.className = isError ? 'err' : 'hint';
+}
+
+async function applyBatch() {
+  const axis = $('batch-axis').value;
+  const mode = $('batch-mode').value;
+  const raw = $('batch-values').value.trim();
+  const force = $('batch-force').checked;
+  if (!axis) return;
+  if (state.checked.size > BATCH_LIMIT) {
+    batchResult(`за раз можно править не больше ${BATCH_LIMIT} объектов`, true);
+    return;
+  }
+  if (mode !== 'unset' && !raw) {
+    batchResult('нужны значения через запятую', true);
+    return;
+  }
+  const values = mode === 'unset' ? [] : raw.split(',').map((v) => v.trim()).filter(Boolean);
+  const body = {
+    ids: [...state.checked],
+    ops: [{ axis, mode, values }],
+    force,
+  };
+  batchResult('применяю…', false);
+  const response = await fetch('/api/v1/patch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    batchResult(payload.error?.message || `HTTP ${response.status}`, true);
+    return;
+  }
+  const skipped = payload.skipped.length
+    ? ` · пропущено (фасет источника): ${[...new Set(payload.skipped.map((s) => s.axis))].join(', ')}`
+    : '';
+  const conflicts = payload.conflicts.length ? ` · конфликтов: ${payload.conflicts.length}` : '';
+  const errors = payload.errors.length ? ` · ошибок: ${payload.errors.length}` : '';
+  batchResult(`изменено: ${payload.changed.length}${conflicts}${skipped}${errors}`, false);
+  await loadObjects();
+  await loadStats();
+}
+
+async function undoLast() {
+  const response = await fetch('/api/v1/undo', { method: 'POST' });
+  const payload = await response.json().catch(() => ({}));
+  if (response.status === 404) {
+    batchResult('откатывать нечего', false);
+    return;
+  }
+  if (!response.ok) {
+    batchResult(payload.error?.message || `HTTP ${response.status}`, true);
+    return;
+  }
+  batchResult(`отменено: ${payload.undone.kind} · ${payload.undone.entity_id.slice(0, 8)}`, false);
+  await loadObjects();
+  await loadStats();
+  if (state.selected) await selectObject(state.selected);
 }
 
 // --------------------------------------------------------------- правка (3.1)
@@ -515,6 +607,14 @@ async function loadAxes() {
     const schema = await api('/schema');
     state.axes = schema.schema.axes || [];
     state.scalars = schema.schema.scalars || [];
+    const batchAxis = $('batch-axis');
+    batchAxis.replaceChildren();
+    for (const axis of state.axes) {
+      const option = document.createElement('option');
+      option.value = axis.name;
+      option.textContent = axis.multi ? `${axis.name} (multi)` : axis.name;
+      batchAxis.append(option);
+    }
     const list = $('axis-list');
     list.replaceChildren();
     for (const axis of state.axes) {
@@ -540,6 +640,12 @@ $('clear').addEventListener('click', () => {
   writeUrl(true);
   renderChips();
   loadObjects();
+});
+$('batch-apply').addEventListener('click', () => {
+  void applyBatch();
+});
+$('batch-undo').addEventListener('click', () => {
+  void undoLast();
 });
 $('prev').addEventListener('click', () => {
   state.offset = Math.max(0, state.offset - state.limit);

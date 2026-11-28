@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from uuid import uuid4
 
 from axislar_core.contracts import (
     CategoricalValue,
@@ -173,8 +174,9 @@ async def journaled_patch(
         force=force,
     )
     changed = {key for key, _ in outcome.changed}
+    batch = f"patch-{uuid4().hex[:12]}"
     entries = [
-        make_entry("patch", old, await storage.get(entity_id))
+        make_entry("patch", old, await storage.get(entity_id), batch=batch)
         for entity_id, old in zip(ids, before, strict=True)
         if old is not None and str(entity_id) in changed
     ]

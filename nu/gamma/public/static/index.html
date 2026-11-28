@@ -34,6 +34,26 @@
       синтаксис: axis:op=значения · операторы: contains, any_of, none_of, exists, not_exists,
       eq, gt, lt, gte, lte, between, scalar_eq · фильтры сохраняются в адресе страницы
     </p>
+    <div class="batch" id="batch" hidden>
+      <strong>выбрано: <span id="batch-count">0</span></strong>
+      <label>ось
+        <select id="batch-axis"></select>
+      </label>
+      <label>операция
+        <select id="batch-mode">
+          <option value="set">заменить</option>
+          <option value="add">добавить</option>
+          <option value="unset">убрать</option>
+        </select>
+      </label>
+      <label class="grow">значения
+        <input id="batch-values" placeholder="через запятую" autocomplete="off">
+      </label>
+      <label class="inline"><input type="checkbox" id="batch-force"> перезаписать фасет источника</label>
+      <button type="button" id="batch-apply">применить</button>
+      <button type="button" id="batch-undo" title="отменить последнюю правку">отменить</button>
+    </div>
+    <p class="hint" id="batch-result" hidden></p>
     <div class="list" id="objects">
       <p class="muted">объектов нет — нажмите «найти»</p>
     </div>
@@ -67,7 +87,7 @@
   <p id="stats-warning" class="note" hidden></p>
 </section>
 
-<footer class="muted">AgoraLar · только чтение · работает локально, без сети</footer>
+<footer class="muted">AgoraLar · работает локально, без сети</footer>
 <script src="/static/app.js"></script>
 </body>
 </html>

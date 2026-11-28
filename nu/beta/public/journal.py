@@ -46,16 +46,22 @@ class JournalEntry:
     entity_id: str
     before: dict[str, Any] | None
     after: dict[str, Any] | None
+    #: Идентификатор операции: массовая правка — одна операция, много записей.
+    #: `None` — старая запись (или одиночное действие): откат по одной.
+    batch: str | None = None
 
     def as_json(self) -> str:
+        payload: dict[str, Any] = {
+            "at": self.at.isoformat(),
+            "kind": self.kind,
+            "entity_id": self.entity_id,
+            "before": self.before,
+            "after": self.after,
+        }
+        if self.batch is not None:
+            payload["batch"] = self.batch
         return json.dumps(
-            {
-                "at": self.at.isoformat(),
-                "kind": self.kind,
-                "entity_id": self.entity_id,
-                "before": self.before,
-                "after": self.after,
-            },
+            payload,
             ensure_ascii=False,
         )
 
@@ -72,6 +78,7 @@ class JournalEntry:
             entity_id=str(payload.get("entity_id", "")),
             before=payload.get("before"),
             after=payload.get("after"),
+            batch=str(payload["batch"]) if payload.get("batch") else None,
         )
 
 
@@ -113,6 +120,15 @@ class Journal:
         entries = self.entries()
         return entries[-1] if entries else None
 
+    def remove(self, entry: JournalEntry) -> None:
+        """Убрать конкретную запись (откат операции целиком)."""
+        entries = self.entries()
+        try:
+            entries.remove(entry)
+        except ValueError:
+            return
+        self.path.write_text("".join(item.as_json() + "\n" for item in entries), encoding="utf-8")
+
     def pop_last(self) -> JournalEntry | None:
         entries = self.entries()
         if not entries:
@@ -126,7 +142,13 @@ def snapshot(entity: Entity | None) -> dict[str, Any] | None:
     return None if entity is None else json.loads(entity.model_dump_json())
 
 
-def make_entry(kind: str, before: Entity | None, after: Entity | None) -> JournalEntry:
+def make_entry(
+    kind: str,
+    before: Entity | None,
+    after: Entity | None,
+    *,
+    batch: str | None = None,
+) -> JournalEntry:
     present = after if after is not None else before
     entity_id = str(present.id) if present is not None else ""
     return JournalEntry(
@@ -135,6 +157,7 @@ def make_entry(kind: str, before: Entity | None, after: Entity | None) -> Journa
         entity_id=entity_id,
         before=snapshot(before),
         after=snapshot(after),
+        batch=batch,
     )
 
 
@@ -148,6 +171,9 @@ async def undo_last(storage: IStorageEngine, journal: Journal) -> JournalEntry |
     entry = journal.last()
     if entry is None:
         return None
+
+    if entry.batch is not None:
+        return await _undo_batch(storage, journal, entry.batch)
 
     expected = _recorded_rev(entry)
     if entry.before is None:
@@ -167,6 +193,29 @@ async def undo_last(storage: IStorageEngine, journal: Journal) -> JournalEntry |
         raise JournalError(f"cannot undo: {errors[0]} — объект меняли после этой записи журнала")
     journal.pop_last()
     return entry
+
+
+async def _undo_batch(storage: IStorageEngine, journal: Journal, batch: str) -> JournalEntry | None:
+    """Откатить всю массовую правку: записи одной операции снимаются вместе.
+
+    Порядок — обратный записи, чтобы ревизии совпадали так же, как их ставил
+    `bulk_patch`. Первая ошибка (конфликт) останавливает откат: часть уже
+    восстановлена, и об этом честно сообщается исключением.
+    """
+    entries = [item for item in journal.entries() if item.batch == batch]
+    if not entries:
+        return None
+    for entry in reversed(entries):
+        expected = _recorded_rev(entry)
+        restore = Entity.model_validate(entry.before or {})
+        errors = await storage.upsert(restore, expected_rev=expected)
+        if errors:
+            raise JournalError(
+                f"cannot undo {entry.kind} for {entry.entity_id}: {errors[0]} — "
+                "объект меняли после этой операции"
+            )
+        journal.remove(entry)
+    return entries[-1]
 
 
 def _recorded_rev(entry: JournalEntry) -> int:
