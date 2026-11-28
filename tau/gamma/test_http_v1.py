@@ -464,3 +464,46 @@ def test_artifact_upload_in_v1(server: tuple[int, Any]) -> None:
     assert status == 201, reply
     assert reply["size"] == 5
     assert request(port, "GET", f"/api/v1/artifacts/{reply['content_hash']}")[0] == 200
+
+
+def test_sync_job_runs_in_background(server: tuple[int, Any], tmp_path: Path) -> None:
+    """POST /api/v1/sync ставит задачу, GET /api/v1/jobs/{id} отдаёт прогресс."""
+    import time
+
+    port, _ = server
+    root = tmp_path / "library"
+    root.mkdir()
+    status, reply, _ = request(
+        port,
+        "POST",
+        "/api/v1/sync",
+        body={"source": "filesystem", "options": {"root": str(root), "source_id": "lib"}},
+    )
+    assert status == 202, reply
+    job_id = reply["job"]["id"]
+
+    job: dict[str, Any] = {}
+    for _ in range(100):
+        status, payload, _ = request(port, "GET", f"/api/v1/jobs/{job_id}")
+        assert status == 200, payload
+        job = payload["job"]
+        if job["status"] != "running":
+            break
+        time.sleep(0.05)
+    assert job["status"] == "done", job
+    assert job["scanned"] == 0
+    assert job["applied"] == 0
+
+
+def test_sync_job_rejects_unknown_source(server: tuple[int, Any]) -> None:
+    port, _ = server
+    status, reply, _ = request(port, "POST", "/api/v1/sync", body={"source": "ghost"})
+    assert status in {400, 404, 409}
+    assert "error" in reply
+
+
+def test_unknown_job_is_404(server: tuple[int, Any]) -> None:
+    port, _ = server
+    status, reply, _ = request(port, "GET", "/api/v1/jobs/deadbeef")
+    assert status == 404
+    assert reply["error"]["code"] == "job_not_found"

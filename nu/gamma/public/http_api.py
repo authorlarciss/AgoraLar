@@ -7,11 +7,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
 import json
+import logging
 import secrets
+import threading
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs
@@ -23,16 +27,21 @@ from axislar_core.contracts import (
     Entity,
     EntityId,
     ErrorCode,
+    IEntitySource,
     Query,
     ScalarDefinition,
     StorageQueryError,
+    SyncPolicy,
+    apply_plan,
     make_artifact,
+    plan_sync,
     tombstone_entity,
 )
 
 from nu.psi.contracts.beta import (
     FacetPatch,
     JournalError,
+    UnknownPluginError,
     bulk_patch,
     entity_links,
     journaled_patch,
@@ -44,6 +53,8 @@ from nu.psi.contracts.beta import (
 from nu.psi.contracts.iota import ParseError, parse_filter
 from nu.psi.contracts.mu import CONTRACT_VERSION, KERNEL_CONTRACT_VERSION, __version__
 from nu.psi.product import Product
+
+_LOG = logging.getLogger("agoralar.http")
 
 #: (status, payload[, headers]) — ответ маршрута.
 Response = tuple[int, dict[str, Any]] | tuple[int, dict[str, Any], dict[str, str]]
@@ -75,6 +86,9 @@ class HttpApi:
     def __init__(self, product: Product, token: str | None = None) -> None:
         self.product = product
         self.token = token or None
+        #: Фоновые задачи синхронизации: id -> состояние (фаза 3.5).
+        self._jobs: dict[str, dict[str, Any]] = {}
+        self._jobs_lock = threading.Lock()
 
     async def handle(
         self,
@@ -210,6 +224,10 @@ class HttpApi:
             return await self._v1_patch(body)
         if head == "undo" and len(parts) == 1 and method == "POST":
             return await self._v1_undo()
+        if head == "sync" and len(parts) == 1 and method == "POST":
+            return self._v1_sync(body)
+        if head == "jobs" and len(parts) == 2 and method == "GET":
+            return self._v1_job(parts[1])
         if head == "objects" and len(parts) == 3 and parts[2] == "links" and method == "GET":
             return await self._v1_links(parts[1], params)
         if head == "stats" and len(parts) == 1 and method == "GET":
@@ -404,6 +422,96 @@ class HttpApi:
             "skipped": [{"id": key, "axis": axis} for key, axis in result.skipped],
             "errors": [_dump(error) for error in result.errors],
         }
+
+    def _v1_sync(self, body: bytes | None) -> Response:
+        """Запустить синхронизацию источника в фоне; вернуть id задачи.
+
+        Синхронизация 10k файлов не должна подвешивать вкладку, поэтому здесь
+        только постановка задачи: прогресс клиент читает из `/api/v1/jobs/{id}`.
+        """
+        try:
+            payload = _json(body)
+        except ValueError as error:
+            return 400, _v1_error("invalid_body", str(error))
+        source_name = payload.get("source")
+        if not isinstance(source_name, str) or not source_name:
+            return 400, _v1_error("invalid_source", "source is required")
+        options = payload.get("options") or {}
+        if not isinstance(options, dict):
+            return 400, _v1_error("invalid_source", "options must be an object")
+
+        try:
+            manifest = self.product.registry.get(source_name)
+        except UnknownPluginError as error:
+            return 404, _v1_error("unknown_plugin", str(error))
+        if manifest.kind.value != "source":
+            return 400, _v1_error(
+                "invalid_source", f"plugin {source_name!r} is {manifest.kind.value}, not source"
+            )
+
+        job_id = uuid4().hex
+        with self._jobs_lock:
+            if any(job["status"] == "running" for job in self._jobs.values()):
+                return 409, _v1_error("sync_running", "another sync is already running")
+            self._jobs[job_id] = {
+                "id": job_id,
+                "source": source_name,
+                "status": "running",
+                "started_at": datetime.now(UTC).isoformat(timespec="seconds"),
+                "finished_at": None,
+                "scanned": 0,
+                "applied": 0,
+                "error": None,
+            }
+        threading.Thread(
+            target=self._run_sync_job,
+            args=(job_id, source_name, options),
+            daemon=True,
+        ).start()
+        return 202, {"job": {"id": job_id, "status": "running"}}
+
+    def _v1_job(self, job_id: str) -> Response:
+        with self._jobs_lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return 404, _v1_error("job_not_found", f"job {job_id!r} not found")
+            return 200, {"job": dict(job)}
+
+    def _run_sync_job(self, job_id: str, source_name: str, options: dict[str, Any]) -> None:
+        """Тело фоновой задачи: скан → план → применение."""
+        try:
+            asyncio.run(self._sync_job(job_id, source_name, options))
+        except Exception as error:  # задача не должна валить сервер
+            _LOG.exception("sync job failed")
+            with self._jobs_lock:
+                job = self._jobs.get(job_id)
+                if job is not None:
+                    job.update(
+                        status="failed",
+                        finished_at=datetime.now(UTC).isoformat(timespec="seconds"),
+                        error=str(error),
+                    )
+
+    async def _sync_job(self, job_id: str, source_name: str, options: dict[str, Any]) -> None:
+        manifest = self.product.registry.get(source_name)
+        source = manifest.factory(options)
+        if not isinstance(source, IEntitySource):
+            raise ValueError(f"plugin {source_name!r} is not an entity source")
+        source_id = str(options.get("source_id", ""))
+        storage = self.product.core.storage
+        scanned = [entity async for entity in source.scan()]
+        existing = await storage.list_entities(include_deleted=True)
+        plan = plan_sync(scanned, existing, SyncPolicy(source_id=source_id, complete=True))
+        applied = await apply_plan(storage, plan)
+        with self._jobs_lock:
+            job = self._jobs.get(job_id)
+            if job is not None:
+                job.update(
+                    status="done",
+                    finished_at=datetime.now(UTC).isoformat(timespec="seconds"),
+                    scanned=len(scanned),
+                    applied=applied,
+                )
 
     async def _v1_undo(self) -> Response:
         """Откат последней журнальной правки (кнопка «отменить» в UI)."""
