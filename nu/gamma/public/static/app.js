@@ -424,6 +424,144 @@ async function uploadArtifact(card, input) {
   showError(card, conflictMessage(result));
 }
 
+// ---------------------------------------------------------- граф (4.2)
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function svgNode(name, attrs) {
+  const node = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
+  return node;
+}
+
+function graphAxes() {
+  const box = $('graph-axes');
+  if (box.dataset.ready === 'yes') return;
+  box.replaceChildren();
+  for (const axis of state.axes.filter((item) => item.kind === 'reference')) {
+    const label = document.createElement('label');
+    label.className = 'inline';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.value = axis.name;
+    input.checked = true;
+    input.dataset.graphAxis = axis.name;
+    label.append(input, ` ${axis.name}`);
+    box.append(label);
+  }
+  box.dataset.ready = 'yes';
+}
+
+function graphAxesSelected() {
+  return [...document.querySelectorAll('input[data-graph-axis]:checked')].map((i) => i.value);
+}
+
+function layout(window) {
+  const adjacency = new Map();
+  for (const node of window.nodes) adjacency.set(node.id, new Set());
+  for (const edge of window.edges) {
+    adjacency.get(edge.source)?.add(edge.target);
+    adjacency.get(edge.target)?.add(edge.source);
+  }
+  const root = window.nodes[0].id;
+  const levels = new Map([[root, 0]]);
+  const queue = [root];
+  while (queue.length) {
+    const current = queue.shift();
+    for (const next of adjacency.get(current) || []) {
+      if (!levels.has(next)) {
+        levels.set(next, levels.get(current) + 1);
+        queue.push(next);
+      }
+    }
+  }
+  const byLevel = new Map();
+  for (const node of window.nodes) {
+    const level = levels.has(node.id) ? levels.get(node.id) : 1;
+    if (!byLevel.has(level)) byLevel.set(level, []);
+    byLevel.get(level).push(node.id);
+  }
+  const positions = new Map();
+  for (const [level, ids] of byLevel) {
+    ids.forEach((id, index) => {
+      const angle = (2 * Math.PI * index) / ids.length - Math.PI / 2;
+      const radius = level * 110;
+      positions.set(id, {
+        x: 400 + radius * Math.cos(angle),
+        y: 180 + radius * Math.sin(angle),
+      });
+    });
+  }
+  return positions;
+}
+
+function renderGraph(window) {
+  const svg = $('graph');
+  svg.replaceChildren();
+  const positions = layout(window);
+  for (const edge of window.edges) {
+    const from = positions.get(edge.source);
+    const to = positions.get(edge.target);
+    if (!from || !to) continue;
+    const line = svgNode('line', {
+      x1: from.x, y1: from.y, x2: to.x, y2: to.y,
+      stroke: edge.dangling ? '#b00020' : '#9aa0a6',
+      'stroke-width': edge.dangling ? 2 : 1,
+      'stroke-dasharray': edge.dangling ? '4 3' : '',
+    });
+    const title = svgNode('title', {});
+    title.textContent = edge.axis;
+    line.append(title);
+    svg.append(line);
+  }
+  for (const node of window.nodes) {
+    const position = positions.get(node.id);
+    if (!position) continue;
+    const group = svgNode('g', { transform: `translate(${position.x},${position.y})` });
+    group.style.cursor = 'pointer';
+    const circle = svgNode('circle', {
+      r: node.ghost ? 6 : 9,
+      fill: node.ghost ? '#fff' : '#1a73e8',
+      stroke: node.ghost ? '#b00020' : '#1a73e8',
+      'stroke-dasharray': node.ghost ? '3 2' : '',
+    });
+    const text = svgNode('text', { x: 12, y: 4, 'font-size': 10, fill: '#333' });
+    text.textContent = node.label.slice(0, 24);
+    group.append(circle, text);
+    group.addEventListener('click', () => {
+      if (!node.ghost) void selectObject(node.id);
+    });
+    svg.append(group);
+  }
+  const hint = $('graph-hint');
+  hint.textContent = window.ghost_count
+    ? `узлов ${window.total}${window.truncated ? ' (обрезано)' : ''}, из них призраков: ${window.ghost_count}`
+    : `узлов ${window.total}${window.truncated ? ' (обрезано)' : ''}`;
+}
+
+async function openGraph(event) {
+  event.preventDefault();
+  graphAxes();
+  const root = state.selected;
+  if (!root) {
+    $('graph-hint').textContent = 'сначала выберите объект в списке';
+    return;
+  }
+  const params = new URLSearchParams();
+  params.set('ids', root);
+  params.set('depth', $('graph-depth').value);
+  params.set('direction', $('graph-direction').value);
+  const axes = graphAxesSelected();
+  if (axes.length) params.set('axes', axes.join(','));
+  try {
+    const window = await api(`/api/v1/graph?${params}`);
+    window.ghost_count = window.nodes.filter((node) => node.ghost).length;
+    renderGraph(window);
+  } catch (error) {
+    $('graph-hint').textContent = error.message;
+  }
+}
+
 // ---------------------------------------------------- синхронизация (3.5)
 
 async function waitJob(id) {
@@ -888,6 +1026,9 @@ $('clear').addEventListener('click', () => {
 $('create').addEventListener('click', () => openCreate());
 $('sync').addEventListener('click', () => {
   void openSync();
+});
+$('graph-controls').addEventListener('submit', (event) => {
+  void openGraph(event);
 });
 $('sync-cancel').addEventListener('click', () => {
   const job = $('sync-cancel').dataset.job;

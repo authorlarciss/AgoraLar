@@ -80,6 +80,26 @@
   </section>
 </main>
 
+<section class="panel" id="graph-panel">
+  <h2>граф связей</h2>
+  <form id="graph-controls" class="filters">
+    <label>глубина
+      <select id="graph-depth"><option>1</option><option>2</option><option>3</option></select>
+    </label>
+    <label>направление
+      <select id="graph-direction">
+        <option value="both">в обе стороны</option>
+        <option value="out">исходящие</option>
+        <option value="in">входящие</option>
+      </select>
+    </label>
+    <span class="muted">оси: <span id="graph-axes"></span></span>
+    <button type="submit">построить вокруг выбранного</button>
+  </form>
+  <p class="hint" id="graph-hint">выберите объект в списке и нажмите «построить»</p>
+  <svg id="graph" width="100%" height="360" viewBox="0 0 800 360"></svg>
+</section>
+
 <section class="panel">
   <h2>разреженность по осям</h2>
   <p class="hint">доля объектов, у которых ось заполнена; пустая ось — либо забытый импорт, либо схема впереди данных</p>
