@@ -507,3 +507,17 @@ def test_unknown_job_is_404(server: tuple[int, Any]) -> None:
     status, reply, _ = request(port, "GET", "/api/v1/jobs/deadbeef")
     assert status == 404
     assert reply["error"]["code"] == "job_not_found"
+
+
+def test_sources_listing_includes_configured_options(server: tuple[int, Any]) -> None:
+    port, api = server
+    status, reply, _ = request(port, "GET", "/api/v1/sources")
+    assert status == 200
+    names = {item["name"] for item in reply["sources"]}
+    assert {"filesystem", "markdown"} <= names
+    assert all(isinstance(item["options"], dict) for item in reply["sources"])
+
+    api.product.plugins["filesystem"] = {"root": "/tmp/library", "source_id": "lib"}
+    _, reply, _ = request(port, "GET", "/api/v1/sources")
+    filesystem = next(item for item in reply["sources"] if item["name"] == "filesystem")
+    assert filesystem["options"]["source_id"] == "lib"

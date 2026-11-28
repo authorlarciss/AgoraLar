@@ -424,6 +424,80 @@ async function uploadArtifact(card, input) {
   showError(card, conflictMessage(result));
 }
 
+// ---------------------------------------------------- синхронизация (3.5)
+
+async function waitJob(id) {
+  const line = $('batch-result');
+  for (let attempt = 0; attempt < 600; attempt += 1) {
+    const job = await api(`/api/v1/jobs/${encodeURIComponent(id)}`).then((r) => r.job);
+    if (job.status === 'done') {
+      batchResult(`синхронизация: просканировано ${job.scanned}, применено ${job.applied}`, false);
+      await loadObjects();
+      await loadStats();
+      if (state.selected) await selectObject(state.selected);
+      return;
+    }
+    if (job.status === 'failed') {
+      batchResult(`синхронизация не удалась: ${job.error}`, true);
+      return;
+    }
+    line.hidden = false;
+    line.className = 'hint';
+    line.textContent = `синхронизация идёт… ${job.scanned ? `найдено ${job.scanned}` : ''}`;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  batchResult('синхронизация не завершилась за 5 минут — откройте задачу заново', true);
+}
+
+async function openSync() {
+  const { sources } = await api('/api/v1/sources');
+  const mask = document.createElement('div');
+  mask.className = 'dialog-mask';
+  const box = document.createElement('div');
+  box.className = 'dialog';
+  const text = document.createElement('p');
+  text.textContent = 'синхронизировать источник';
+  const select = document.createElement('select');
+  for (const source of sources) {
+    const option = document.createElement('option');
+    option.value = source.name;
+    const configured = Object.keys(source.options).length ? '' : ' (не настроен)';
+    option.textContent = `${source.name}${configured}`;
+    select.append(option);
+  }
+  const actions = document.createElement('div');
+  actions.className = 'dialog-actions';
+  const start = document.createElement('button');
+  start.type = 'button';
+  start.textContent = 'запустить';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.textContent = 'отмена';
+  cancel.addEventListener('click', () => mask.remove());
+  start.addEventListener('click', async () => {
+    const response = await fetch('/api/v1/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: select.value }),
+    });
+    const reply = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      batchResult(reply.error?.message || `HTTP ${response.status}`, true);
+      return;
+    }
+    mask.remove();
+    batchResult('синхронизация запущена', false);
+    await waitJob(reply.job.id);
+  });
+  actions.append(start, cancel);
+  box.append(text, select, actions);
+  mask.append(box);
+  mask.addEventListener('click', (event) => {
+    if (event.target === mask) mask.remove();
+  });
+  document.body.append(mask);
+}
+
 // ------------------------------------------------------- массовая правка (3.2)
 
 function updateBatch() {
@@ -800,6 +874,9 @@ $('clear').addEventListener('click', () => {
   loadObjects();
 });
 $('create').addEventListener('click', () => openCreate());
+$('sync').addEventListener('click', () => {
+  void openSync();
+});
 $('batch-apply').addEventListener('click', () => {
   void applyBatch();
 });

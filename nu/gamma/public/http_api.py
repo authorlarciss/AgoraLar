@@ -224,6 +224,8 @@ class HttpApi:
             return await self._v1_patch(body)
         if head == "undo" and len(parts) == 1 and method == "POST":
             return await self._v1_undo()
+        if head == "sources" and len(parts) == 1 and method == "GET":
+            return self._v1_sources()
         if head == "sync" and len(parts) == 1 and method == "POST":
             return self._v1_sync(body)
         if head == "jobs" and len(parts) == 2 and method == "GET":
@@ -423,6 +425,18 @@ class HttpApi:
             "errors": [_dump(error) for error in result.errors],
         }
 
+    def _v1_sources(self) -> Response:
+        """Источники из реестра и их настроенные секции конфига."""
+        sources = [
+            {
+                "name": manifest.name,
+                "options": dict(self.product.plugins.get(manifest.name, {})),
+            }
+            for manifest in self.product.registry.available
+            if manifest.kind.value == "source"
+        ]
+        return 200, {"sources": sources}
+
     def _v1_sync(self, body: bytes | None) -> Response:
         """Запустить синхронизацию источника в фоне; вернуть id задачи.
 
@@ -436,9 +450,15 @@ class HttpApi:
         source_name = payload.get("source")
         if not isinstance(source_name, str) or not source_name:
             return 400, _v1_error("invalid_source", "source is required")
-        options = payload.get("options") or {}
-        if not isinstance(options, dict):
+        raw_options = payload.get("options")
+        if raw_options is not None and not isinstance(raw_options, dict):
             return 400, _v1_error("invalid_source", "options must be an object")
+        # Тело перекрывает секцию `[plugins.<имя>]`: обычно UI вообще ничего не
+        # передаёт и источник берёт настройки из конфига.
+        options = {
+            **self.product.plugins.get(source_name, {}),
+            **(raw_options or {}),
+        }
 
         try:
             manifest = self.product.registry.get(source_name)

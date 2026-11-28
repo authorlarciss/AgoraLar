@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
 
@@ -28,6 +28,8 @@ class Product:
     store: str
     #: Журнал правок рядом с данными; `None` — хранилище без файла (memory).
     journal: Journal | None = None
+    #: Секции `[plugins.<имя>]` из конфига: параметры источников и анализаторов.
+    plugins: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
 
     def describe(self) -> str:
         plugins = ", ".join(manifest.name for manifest in self.registry.available) or "<нет>"
@@ -68,7 +70,11 @@ def build_product(
             f"plugin {chosen!r} returned {type(engine).__name__}, expected IStorageEngine"
         )
     return Product(
-        core=build_core(storage=engine), registry=registry, store=chosen, journal=journal
+        core=build_core(storage=engine),
+        registry=registry,
+        store=chosen,
+        journal=journal,
+        plugins=dict(settings.plugins),
     )
 
 
