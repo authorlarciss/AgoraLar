@@ -214,6 +214,8 @@ class HttpApi:
             return await self._v1_links(parts[1], params)
         if head == "stats" and len(parts) == 1 and method == "GET":
             return await self._v1_stats()
+        if head == "artifacts" and len(parts) == 1 and method == "POST":
+            return await self._v1_put_artifact(body)
         if head == "artifacts" and len(parts) == 2 and method == "GET":
             return await self._get_artifact(parts[1])
         return 404, _v1_error("not_found", f"no v1 route {'/'.join(parts)}")
@@ -611,6 +613,21 @@ class HttpApi:
             "content_hash": artifact.content_hash,
             "media_type": artifact.media_type,
             "size": artifact.size,
+        }
+
+    async def _v1_put_artifact(self, body: bytes | None) -> Response:
+        """Загрузка байтов в v1: тело `{media_type, data(base64)}`."""
+        try:
+            result = await self._put_artifact(body)
+        except ValueError as error:
+            return 400, _v1_error("invalid_body", str(error))
+        status, payload = result[0], result[1]
+        if status != 201:
+            return status, payload
+        return 201, {
+            "content_hash": payload["content_hash"],
+            "media_type": payload["media_type"],
+            "size": payload["size"],
         }
 
     async def _get_artifact(self, content_hash: str) -> Response:

@@ -449,3 +449,18 @@ def test_delete_with_stale_etag_conflicts(server: tuple[int, Any]) -> None:
     assert status == 409
     assert reply["error"]["code"] == "conflict"
     assert reply["current"]["etag"] == '"r2"'
+
+
+def test_artifact_upload_in_v1(server: tuple[int, Any]) -> None:
+    import base64
+
+    port, _ = server
+    status, reply, _ = request(
+        port,
+        "POST",
+        "/api/v1/artifacts",
+        body={"media_type": "text/plain", "data": base64.b64encode(b"hello").decode()},
+    )
+    assert status == 201, reply
+    assert reply["size"] == 5
+    assert request(port, "GET", f"/api/v1/artifacts/{reply['content_hash']}")[0] == 200

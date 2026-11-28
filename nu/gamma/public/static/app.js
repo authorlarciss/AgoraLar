@@ -251,7 +251,16 @@ function renderCard(card) {
   edit.type = 'button';
   edit.textContent = 'править';
   edit.addEventListener('click', () => openEditor(card));
-  title.append(edit);
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'danger';
+  remove.textContent = 'удалить';
+  remove.addEventListener('click', () => removeObject(card));
+  const upload = document.createElement('input');
+  upload.type = 'file';
+  upload.className = 'upload';
+  upload.addEventListener('change', () => uploadArtifact(card, upload));
+  title.append(edit, remove, upload);
   card.append(title);
 
   const facets = document.createElement('p');
@@ -264,6 +273,155 @@ function renderCard(card) {
 
   $('raw').textContent = JSON.stringify(entity, null, 2);
   $('raw-wrap').hidden = false;
+}
+
+// ------------------------------------------------- создание/удаление (3.3)
+
+function scalarInput(name, value, label) {
+  const row = document.createElement('label');
+  row.className = 'field';
+  const caption = document.createElement('span');
+  caption.textContent = label || name;
+  const input = document.createElement('input');
+  input.value = value ?? '';
+  input.dataset.scalar = name;
+  row.append(caption, input);
+  return row;
+}
+
+function openCreate() {
+  const mask = document.createElement('div');
+  mask.className = 'dialog-mask';
+  const form = document.createElement('form');
+  form.className = 'dialog editor';
+  const heading = document.createElement('p');
+  heading.textContent = 'новый объект';
+  form.append(heading);
+
+  const kindRow = document.createElement('label');
+  kindRow.className = 'field';
+  const kindName = document.createElement('span');
+  kindName.textContent = 'вид (kind)';
+  const kind = document.createElement('input');
+  kind.value = 'note';
+  kind.required = true;
+  kindRow.append(kindName, kind);
+  form.append(kindRow);
+  for (const scalar of state.scalars) form.append(scalarInput(scalar.name, ''));
+
+  const actions = document.createElement('div');
+  actions.className = 'dialog-actions';
+  const submit = document.createElement('button');
+  submit.type = 'submit';
+  submit.textContent = 'создать';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.textContent = 'отмена';
+  cancel.addEventListener('click', () => mask.remove());
+  actions.append(submit, cancel);
+  form.append(actions);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const payload = { kind: kind.value.trim(), scalars: {} };
+    for (const input of form.querySelectorAll('input[data-scalar]')) {
+      const value = input.value.trim();
+      if (value) payload.scalars[input.dataset.scalar] = value;
+    }
+    const response = await fetch('/api/v1/objects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const reply = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      batchResult(reply.error?.detail || reply.error?.message || `HTTP ${response.status}`, true);
+      return;
+    }
+    mask.remove();
+    await loadObjects();
+    await loadStats();
+    await selectObject(reply.id);
+  });
+
+  mask.append(form);
+  mask.addEventListener('click', (event) => {
+    if (event.target === mask) mask.remove();
+  });
+  document.body.append(mask);
+  const first = form.querySelector('input');
+  if (first) first.focus();
+}
+
+async function removeObject(card) {
+  if (!state.entity) return;
+  const ok = window.confirm(`удалить объект ${state.entity.id.slice(0, 8)}?`);
+  if (!ok) return;
+  const headers = {};
+  if (state.etag) headers['If-Match'] = state.etag;
+  const response = await fetch(`/api/v1/objects/${encodeURIComponent(state.entity.id)}`, {
+    method: 'DELETE',
+    headers,
+  });
+  const reply = await response.json().catch(() => ({}));
+  if (response.status === 409 && reply.error?.code === 'reference_in_use') {
+    const axis = reply.error.axis ? ` (ось ${reply.error.axis})` : '';
+    showError(card, `нельзя удалить: ${reply.error.message}${axis}`);
+    return;
+  }
+  if (!response.ok) {
+    showError(card, reply.error?.message || `HTTP ${response.status}`);
+    return;
+  }
+  state.entity = null;
+  state.etag = null;
+  state.selected = null;
+  card.replaceChildren();
+  const note = document.createElement('p');
+  note.className = 'muted';
+  note.textContent = 'объект удалён (tombstone) — «отменить» вернёт его';
+  card.append(note);
+  await loadObjects();
+  await loadStats();
+}
+
+async function uploadArtifact(card, input) {
+  const file = input.files && input.files[0];
+  if (!file || !state.entity) return;
+  const buffer = await file.arrayBuffer();
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  const response = await fetch('/api/v1/artifacts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      media_type: file.type || 'application/octet-stream',
+      data: btoa(binary),
+    }),
+  });
+  const uploaded = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showError(card, uploaded.error?.message || `HTTP ${response.status}`);
+    return;
+  }
+  const payload = JSON.parse(JSON.stringify(state.entity));
+  payload.artifacts = payload.artifacts || {};
+  payload.artifacts.file = {
+    content_hash: uploaded.content_hash,
+    media_type: uploaded.media_type,
+    size: uploaded.size,
+  };
+  const result = await saveEntity(state.entity.id, payload, state.etag);
+  if (result.ok) {
+    await selectObject(state.entity.id);
+    return;
+  }
+  if (result.conflict) {
+    showError(card, 'объект изменили: перечитайте карточку и загрузите файл снова');
+    return;
+  }
+  showError(card, conflictMessage(result));
 }
 
 // ------------------------------------------------------- массовая правка (3.2)
@@ -641,6 +799,7 @@ $('clear').addEventListener('click', () => {
   renderChips();
   loadObjects();
 });
+$('create').addEventListener('click', () => openCreate());
 $('batch-apply').addEventListener('click', () => {
   void applyBatch();
 });
