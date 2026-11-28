@@ -1,6 +1,11 @@
 """Публичный API модуля beta продукта: реестр плагинов и состояние sync."""
 
 from nu.beta.public.analyzers import IAnalyzer as IAnalyzer
+from nu.beta.public.graph import DEFAULT_LIMIT as GRAPH_LIMIT
+from nu.beta.public.graph import GraphEdge as GraphEdge
+from nu.beta.public.graph import GraphNode as GraphNode
+from nu.beta.public.graph import Subgraph as Subgraph
+from nu.beta.public.graph import subgraph as subgraph
 from nu.beta.public.journal import DEFAULT_LIMIT as JOURNAL_LIMIT
 from nu.beta.public.journal import Journal as Journal
 from nu.beta.public.journal import JournalEntry as JournalEntry
@@ -41,12 +46,17 @@ from nu.beta.public.sync_state import state_path_for as state_path_for
 __all__ = [
     "AxisStats",
     "BulkPatchResult",
+    "GRAPH_LIMIT",
+    "GraphEdge",
+    "GraphNode",
     "JOURNAL_LIMIT",
     "Journal",
     "JournalEntry",
     "JournalError",
+    "Subgraph",
     "journal_path_for",
     "make_entry",
+    "subgraph",
     "undo_last",
     "FacetPatch",
     "apply_patches",

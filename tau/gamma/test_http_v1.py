@@ -572,3 +572,24 @@ def test_sync_job_honours_cancel_flag(server: tuple[int, Any]) -> None:
     api._finish("job-x", "cancelled", scanned=7)
     assert api._jobs["job-x"]["status"] == "cancelled"
     assert api._jobs["job-x"]["scanned"] == 7
+
+
+def test_graph_route_returns_window(server: tuple[int, Any]) -> None:
+    port, _ = server
+    status, reply, _ = request(port, "GET", "/api/v1/graph?ids=n1&depth=1&axes=links")
+    assert status == 200, reply
+    assert {node["id"] for node in reply["nodes"]} == {"n1", "n2"}
+    assert reply["edges"][0]["axis"] == "links"
+    assert reply["truncated"] is False
+
+    status, reply, _ = request(port, "GET", "/api/v1/graph?ids=n1&depth=0")
+    assert status == 200
+    assert [node["id"] for node in reply["nodes"]] == ["n1"]
+
+
+def test_graph_route_validates_input(server: tuple[int, Any]) -> None:
+    port, _ = server
+    assert request(port, "GET", "/api/v1/graph")[1]["error"]["code"] == "invalid_ids"
+    status, reply, _ = request(port, "GET", "/api/v1/graph?ids=n1&direction=sideways")
+    assert status == 400
+    assert reply["error"]["code"] == "invalid_graph"

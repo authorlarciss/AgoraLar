@@ -48,6 +48,7 @@ from nu.psi.contracts.beta import (
     list_objects,
     make_entry,
     store_stats,
+    subgraph,
     undo_last,
 )
 from nu.psi.contracts.iota import ParseError, parse_filter
@@ -224,6 +225,8 @@ class HttpApi:
             return await self._v1_patch(body)
         if head == "undo" and len(parts) == 1 and method == "POST":
             return await self._v1_undo()
+        if head == "graph" and len(parts) == 1 and method == "GET":
+            return await self._v1_graph(params)
         if head == "sources" and len(parts) == 1 and method == "GET":
             return self._v1_sources()
         if head == "sync" and len(parts) == 1 and method == "POST":
@@ -425,6 +428,43 @@ class HttpApi:
             "conflicts": list(result.conflicts),
             "skipped": [{"id": key, "axis": axis} for key, axis in result.skipped],
             "errors": [_dump(error) for error in result.errors],
+        }
+
+    async def _v1_graph(self, params: dict[str, list[str]]) -> Response:
+        """Окно графа: `ids`, `depth`, `direction`, `axes`, `limit` (4.1)."""
+        raw_ids = [item for token in params.get("ids", []) for item in token.split(",") if item]
+        if not raw_ids:
+            return 400, _v1_error("invalid_ids", "ids is required: /api/v1/graph?ids=a,b")
+        try:
+            depth = _int_param(params, "depth", 1)
+            limit = min(_int_param(params, "limit", 200), 1000)
+            axes = [axis for token in params.get("axes", []) for axis in token.split(",") if axis]
+            window = await subgraph(
+                self.product.core.storage,
+                [EntityId(item) for item in raw_ids],
+                depth=depth,
+                axes=axes or None,
+                direction=params.get("direction", ["both"])[0],
+                limit=limit,
+            )
+        except ValueError as error:
+            return 400, _v1_error("invalid_graph", str(error))
+        return 200, {
+            "nodes": [
+                {"id": node.id, "label": node.label, "kind": node.kind, "ghost": node.ghost}
+                for node in window.nodes
+            ],
+            "edges": [
+                {
+                    "source": edge.source,
+                    "target": edge.target,
+                    "axis": edge.axis,
+                    "dangling": edge.dangling,
+                }
+                for edge in window.edges
+            ],
+            "truncated": window.truncated,
+            "total": window.total,
         }
 
     def _v1_sources(self) -> Response:
