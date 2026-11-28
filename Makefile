@@ -125,8 +125,9 @@ strip-template:
 	$(PY) -m eta.strip_template
 
 # Пакет в разработке называется `nu`; на деплое он переименовывается
-# (nu -> DIST_PACKAGE) в копии дерева, чтобы артефакт был уникальным.
-DIST_PACKAGE ?= agora_nu
+# (nu -> DIST_PACKAGE). Публичное имя модуля совпадает с дистрибутивом:
+# иначе `pip install agoralar` не даёт `import agoralar` (2.6).
+DIST_PACKAGE ?= agoralar
 DIST_DIR ?= .deploy
 
 dist: contracts-check

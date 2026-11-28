@@ -62,7 +62,7 @@ if [[ "$FROM_INDEX" == "1" ]]; then
     }
     PY="$VENV/bin/python"
     CLI="$VENV/bin/agoralar"
-    "$PY" -c "import axislar_core, agora_nu.mu.public as m; print(f'  из индекса: ядро {axislar_core.__version__}, продукт {m.__version__}')"
+    "$PY" -c "import axislar_core, agoralar.mu.public as m; print(f'  из индекса: ядро {axislar_core.__version__}, продукт {m.__version__}')"
     SCENARIOS_ONLY=1
 else
     SCENARIOS_ONLY=0
@@ -90,7 +90,7 @@ uv pip install --python "$PY" \
     --find-links "$ROOT/dist" \
     --find-links "$AXISLAR_DIR/dist" \
     agoralar >/dev/null
-"$PY" -c "import axislar_core, agora_nu.mu.public as m; print(f'  ядро {axislar_core.__version__} (contract {axislar_core.CONTRACT_VERSION}), продукт {m.__version__}')"
+"$PY" -c "import axislar_core, agoralar.mu.public as m; print(f'  ядро {axislar_core.__version__} (contract {axislar_core.CONTRACT_VERSION}), продукт {m.__version__}')"
 
 fi
 
