@@ -597,7 +597,7 @@ def test_graph_route_validates_input(server: tuple[int, Any]) -> None:
 
 def test_mutating_requests_from_foreign_origin_are_rejected(server: tuple[int, Any]) -> None:
     """5.7: чужая страница не может править локальный архив (CSRF)."""
-    port, _ = server
+    port, api = server
     body = {"ids": ["n1"], "ops": [{"axis": "tags", "mode": "unset"}], "force": True}
 
     status, reply, _ = request(
@@ -619,7 +619,11 @@ def test_mutating_requests_from_foreign_origin_are_rejected(server: tuple[int, A
         port,
         "POST",
         "/api/v1/patch",
-        headers={"Origin": "http://127.0.0.1:8000", "Sec-Fetch-Site": "same-origin"},
+        headers={
+            "Origin": "http://127.0.0.1:8000",
+            "Sec-Fetch-Site": "same-origin",
+            "Cookie": f"agoralar_session={api.session}",
+        },
         body=body,
     )
     assert status == 200, reply
@@ -631,6 +635,40 @@ def test_reads_are_not_blocked_by_origin(server: tuple[int, Any]) -> None:
         port, "GET", "/api/v1/objects", headers={"Origin": "https://evil.example"}
     )
     assert status == 200
+
+
+def test_browser_without_cookie_is_rejected_but_local_process_is_not(
+    server: tuple[int, Any],
+) -> None:
+    """ADR-0024: cookie обязательна для браузерного запроса, не для локального."""
+    port, api = server
+    body = {"ids": ["n1"], "ops": [{"axis": "tags", "mode": "unset"}], "force": True}
+
+    status, reply, _ = request(
+        port,
+        "POST",
+        "/api/v1/patch",
+        headers={"Origin": "http://127.0.0.1:8000", "Sec-Fetch-Site": "same-origin"},
+        body=body,
+    )
+    assert status == 403
+    assert "cookie" in reply["error"]
+
+    status, reply, _ = request(
+        port,
+        "POST",
+        "/api/v1/patch",
+        headers={
+            "Origin": "http://127.0.0.1:8000",
+            "Sec-Fetch-Site": "same-origin",
+            "Cookie": f"agoralar_session={api.session}",
+        },
+        body=body,
+    )
+    assert status == 200, reply
+
+    status, reply, _ = request(port, "POST", "/api/v1/patch", body=body)
+    assert status == 200, "локальный процесс без браузерных заголовков проходит"
 
 
 def test_session_cookie_is_issued_and_tampering_rejected(server: tuple[int, Any]) -> None:

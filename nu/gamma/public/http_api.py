@@ -121,6 +121,12 @@ class HttpApi:
             presented = _cookie(headers, SESSION_COOKIE)
             if presented is not None and presented != self.session:
                 return 403, {"error": "stale session cookie"}
+            if presented is None and _browser_request(headers):
+                # Браузер обязан принести нашу cookie: `SameSite=Strict` не даёт
+                # чужой странице её отправить, поэтому отсутствие — отказ
+                # (ADR-0020/0024). Локальные процессы cookie не получают и не
+                # обязаны её иметь.
+                return 403, {"error": "session cookie is required"}
 
         if self.token is not None and route != OPEN_PATH and not self._authorized(headers):
             return 401, {"error": "unauthorized"}
@@ -955,6 +961,15 @@ def _patches(raw: Any) -> tuple[FacetPatch, ...]:
         except ValueError as error:
             raise ValueError(str(error)) from error
     return tuple(patches)
+
+
+def _browser_request(headers: Mapping[str, str] | None) -> bool:
+    """Признак запроса из браузера: он всегда шлёт `Origin` или `Sec-Fetch-Site`.
+
+    curl, скрипты и CLI не шлют ни того, ни другого, а веб-страница скрыть их
+    не может — значит для таких запросов CSRF-правило неприменимо.
+    """
+    return _header(headers, "Origin") is not None or _header(headers, "Sec-Fetch-Site") is not None
 
 
 def _cookie(headers: Mapping[str, str] | None, name: str) -> str | None:
