@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import signal
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
@@ -114,15 +116,31 @@ def make_server(api: HttpApi, host: str = "127.0.0.1", port: int = 8000) -> Thre
 
 
 def serve(api: HttpApi, host: str = "127.0.0.1", port: int = 8000) -> None:
-    """Запустить сервер и работать до остановки."""
+    """Запустить сервер и работать до остановки (Ctrl+C или SIGTERM).
+
+    Свой обработчик сигналов нужен из-за `asyncio.run` в CLI: он ставит
+    `Runner._on_sigint`, который на первый Ctrl+C отменяет главную задачу.
+    Наша задача блокируется в `serve_forever()` и отмену не замечает — Ctrl+C
+    выглядел мёртвым, а процесс жил до закрытия терминала (SIGHUP). Поэтому
+    сигнал останавливает цикл сервера, а не отменяет корутину.
+    """
     server = make_server(api, host, port)
+
+    def stop(signum: int, _frame: object) -> None:
+        # `shutdown()` нельзя звать из обработчика сигнала в том же потоке:
+        # он ждёт завершения serve_forever. Уводим вызов в отдельный поток.
+        threading.Thread(target=server.shutdown, daemon=True).start()
+
+    previous = {sig: signal.signal(sig, stop) for sig in (signal.SIGINT, signal.SIGTERM)}
     host_name, port_number = str(server.server_address[0]), server.server_address[1]
     print(f"agoralar http: http://{host_name}:{port_number}")
     try:
         server.serve_forever()
-    except KeyboardInterrupt:  # pragma: no cover - ручная остановка
+    except KeyboardInterrupt:  # pragma: no cover - страховка, если сигнал всё же вырвался
         pass
     finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
         server.server_close()
 
 

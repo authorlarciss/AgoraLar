@@ -49,3 +49,53 @@ def test_no_token_anywhere(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("AGORALAR_TOKEN", raising=False)
     assert serve_token(argparse.Namespace(token=None)) is None
     assert serve_token(argparse.Namespace(token="")) is None, "пустой токен = нет токена"
+
+
+@pytest.mark.integration
+def test_serve_stops_on_first_sigint(tmp_path: Path) -> None:
+    """Один Ctrl+C останавливает `serve`.
+
+    Регрессия: `asyncio.run` в CLI ставит свой обработчик SIGINT, который
+    отменяет главную задачу; заблокированный `serve_forever` отмену не видит,
+    и Ctrl+C «не работал» — процесс жил до закрытия терминала.
+    """
+    import signal
+    import socket
+    import subprocess
+    import sys
+    import time
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+
+    proc = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "nu.main",
+            "--store",
+            "json",
+            "--data",
+            str(tmp_path / "vault.json"),
+            "serve",
+            "--port",
+            str(port),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    try:
+        for _ in range(100):
+            time.sleep(0.05)
+            try:
+                socket.create_connection(("127.0.0.1", port), timeout=0.2).close()
+                break
+            except OSError:
+                continue
+        proc.send_signal(signal.SIGINT)
+        assert proc.wait(timeout=10) == 0, "serve должен выйти по Ctrl+C"
+    finally:
+        if proc.poll() is None:  # pragma: no cover - защита от зависшего процесса
+            proc.kill()
