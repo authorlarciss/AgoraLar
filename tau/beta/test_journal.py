@@ -156,3 +156,61 @@ async def test_undo_of_creation_refuses_when_object_is_referenced(tmp_path: Path
     assert await engine.upsert(Entity.model_validate({"id": "n1", "kind": "note"})) == []
     assert await undo_last(engine, target) is not None
     assert await engine.get(EntityId("n2")) is None
+
+
+async def test_undo_batch_restores_whole_operation(tmp_path: Path) -> None:
+    """Одна кнопка «отменить» снимает массовую правку целиком (batch)."""
+    from datetime import UTC, datetime
+
+    from nu.psi.contracts.beta import JournalEntry
+
+    engine = await storage()
+    target = journal(tmp_path)
+    for name in ("n1", "n2"):
+        assert await engine.upsert(Entity.model_validate({"id": name, "kind": "note"})) == []
+    before = [await engine.get(EntityId(name)) for name in ("n1", "n2")]
+    for entity in before:
+        assert entity is not None
+        changed = Entity.model_validate({**entity.model_dump(), "scalars": {"title": "правка"}})
+        assert await engine.upsert(changed) == []
+    after = [await engine.get(EntityId(name)) for name in ("n1", "n2")]
+    entries = [
+        JournalEntry(
+            at=datetime.now(UTC),
+            kind="patch",
+            entity_id=past.id,
+            before=past.model_dump(mode="json"),
+            after=now.model_dump(mode="json"),
+            batch="op-1",
+        )
+        for past, now in zip(before, after, strict=True)
+        if past is not None and now is not None
+    ]
+    target.append(entries)
+
+    undone = await undo_last(engine, target)
+    assert undone is not None and undone.batch == "op-1"
+    for name in ("n1", "n2"):
+        restored = await engine.get(EntityId(name))
+        assert restored is not None and restored.scalars.get("title") is None
+    assert target.entries() == [], "записи операции сняты"
+    assert await undo_last(engine, target) is None
+
+
+async def test_journal_remove_is_noop_for_unknown_entry(tmp_path: Path) -> None:
+    from datetime import UTC, datetime
+
+    from nu.psi.contracts.beta import JournalEntry
+
+    target = journal(tmp_path)
+    assert target.entries() == []
+    target.remove(
+        JournalEntry(
+            at=datetime.now(UTC),
+            kind="patch",
+            entity_id="ghost",
+            before=None,
+            after=None,
+        )
+    )
+    assert target.entries() == []

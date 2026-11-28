@@ -428,9 +428,13 @@ async function uploadArtifact(card, input) {
 
 async function waitJob(id) {
   const line = $('batch-result');
+  const cancel = $('sync-cancel');
+  cancel.hidden = false;
+  cancel.dataset.job = id;
   for (let attempt = 0; attempt < 600; attempt += 1) {
     const job = await api(`/api/v1/jobs/${encodeURIComponent(id)}`).then((r) => r.job);
     if (job.status === 'done') {
+      cancel.hidden = true;
       batchResult(`синхронизация: просканировано ${job.scanned}, применено ${job.applied}`, false);
       await loadObjects();
       await loadStats();
@@ -438,7 +442,15 @@ async function waitJob(id) {
       return;
     }
     if (job.status === 'failed') {
+      cancel.hidden = true;
       batchResult(`синхронизация не удалась: ${job.error}`, true);
+      return;
+    }
+    if (job.status === 'cancelled') {
+      cancel.hidden = true;
+      batchResult(`синхронизация отменена: просканировано ${job.scanned}`, false);
+      await loadObjects();
+      await loadStats();
       return;
     }
     line.hidden = false;
@@ -876,6 +888,11 @@ $('clear').addEventListener('click', () => {
 $('create').addEventListener('click', () => openCreate());
 $('sync').addEventListener('click', () => {
   void openSync();
+});
+$('sync-cancel').addEventListener('click', () => {
+  const job = $('sync-cancel').dataset.job;
+  if (!job) return;
+  void fetch(`/api/v1/jobs/${encodeURIComponent(job)}/cancel`, { method: 'POST' });
 });
 $('batch-apply').addEventListener('click', () => {
   void applyBatch();

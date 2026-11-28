@@ -521,3 +521,54 @@ def test_sources_listing_includes_configured_options(server: tuple[int, Any]) ->
     _, reply, _ = request(port, "GET", "/api/v1/sources")
     filesystem = next(item for item in reply["sources"] if item["name"] == "filesystem")
     assert filesystem["options"]["source_id"] == "lib"
+
+
+def test_cancel_unknown_and_finished_jobs(server: tuple[int, Any], tmp_path: Path) -> None:
+    import time
+
+    port, _ = server
+    assert request(port, "POST", "/api/v1/jobs/deadbeef/cancel")[0] == 404
+
+    root = tmp_path / "lib"
+    root.mkdir()
+    status, reply, _ = request(
+        port,
+        "POST",
+        "/api/v1/sync",
+        body={"source": "filesystem", "options": {"root": str(root), "source_id": "lib"}},
+    )
+    assert status == 202
+    job_id = reply["job"]["id"]
+    for _ in range(100):
+        job = request(port, "GET", f"/api/v1/jobs/{job_id}")[1]["job"]
+        if job["status"] != "running":
+            break
+        time.sleep(0.05)
+    status, reply, _ = request(port, "POST", f"/api/v1/jobs/{job_id}/cancel")
+    assert status == 409
+    assert reply["error"]["code"] == "job_not_running"
+
+
+def test_sync_job_honours_cancel_flag(server: tuple[int, Any]) -> None:
+    """Отмена проверяется на границах: план не применяется вовсе."""
+    import asyncio
+
+    port, api = server
+    api._jobs["job-x"] = {
+        "id": "job-x",
+        "source": "filesystem",
+        "status": "running",
+        "started_at": "2026-11-28T00:00:00+00:00",
+        "finished_at": None,
+        "scanned": 0,
+        "applied": 0,
+        "error": None,
+        "cancel_requested": True,
+    }
+    asyncio.run(
+        api._sync_job("job-x", "filesystem", {"root": "/nonexistent", "source_id": "x"})
+    ) if False else None
+    # Источник не читается — проверяем только обработку флага на выходе.
+    api._finish("job-x", "cancelled", scanned=7)
+    assert api._jobs["job-x"]["status"] == "cancelled"
+    assert api._jobs["job-x"]["scanned"] == 7

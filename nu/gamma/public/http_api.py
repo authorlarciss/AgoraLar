@@ -230,6 +230,8 @@ class HttpApi:
             return self._v1_sync(body)
         if head == "jobs" and len(parts) == 2 and method == "GET":
             return self._v1_job(parts[1])
+        if head == "jobs" and len(parts) == 3 and parts[2] == "cancel" and method == "POST":
+            return self._v1_cancel(parts[1])
         if head == "objects" and len(parts) == 3 and parts[2] == "links" and method == "GET":
             return await self._v1_links(parts[1], params)
         if head == "stats" and len(parts) == 1 and method == "GET":
@@ -482,6 +484,7 @@ class HttpApi:
                 "scanned": 0,
                 "applied": 0,
                 "error": None,
+                "cancel_requested": False,
             }
         threading.Thread(
             target=self._run_sync_job,
@@ -496,6 +499,24 @@ class HttpApi:
             if job is None:
                 return 404, _v1_error("job_not_found", f"job {job_id!r} not found")
             return 200, {"job": dict(job)}
+
+    def _v1_cancel(self, job_id: str) -> Response:
+        """Попросить задачу остановиться.
+
+        Отмена кооперативная: скан источника и запись пачки прерывать на
+        середине нельзя (пачка атомарна), поэтому флаг проверяется на
+        границах — после скана и перед применением плана.
+        """
+        with self._jobs_lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return 404, _v1_error("job_not_found", f"job {job_id!r} not found")
+            if job["status"] != "running":
+                return 409, _v1_error(
+                    "job_not_running", f"job is {job['status']}, nothing to cancel"
+                )
+            job["cancel_requested"] = True
+            return 202, {"job": dict(job)}
 
     def _run_sync_job(self, job_id: str, source_name: str, options: dict[str, Any]) -> None:
         """Тело фоновой задачи: скан → план → применение."""
@@ -520,8 +541,14 @@ class HttpApi:
         source_id = str(options.get("source_id", ""))
         storage = self.product.core.storage
         scanned = [entity async for entity in source.scan()]
+        if self._cancelled(job_id):
+            self._finish(job_id, "cancelled", scanned=len(scanned))
+            return
         existing = await storage.list_entities(include_deleted=True)
         plan = plan_sync(scanned, existing, SyncPolicy(source_id=source_id, complete=True))
+        if self._cancelled(job_id):
+            self._finish(job_id, "cancelled", scanned=len(scanned))
+            return
         applied = await apply_plan(storage, plan)
         with self._jobs_lock:
             job = self._jobs.get(job_id)
@@ -532,6 +559,23 @@ class HttpApi:
                     scanned=len(scanned),
                     applied=applied,
                 )
+
+    def _cancelled(self, job_id: str) -> bool:
+        with self._jobs_lock:
+            job = self._jobs.get(job_id)
+            return bool(job and job.get("cancel_requested"))
+
+    def _finish(self, job_id: str, status: str, *, scanned: int = 0, applied: int = 0) -> None:
+        with self._jobs_lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return
+            job.update(
+                status=status,
+                finished_at=datetime.now(UTC).isoformat(timespec="seconds"),
+                scanned=scanned,
+                applied=applied,
+            )
 
     async def _v1_undo(self) -> Response:
         """Откат последней журнальной правки (кнопка «отменить» в UI)."""
