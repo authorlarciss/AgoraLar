@@ -83,8 +83,10 @@
 `agoralar-store-sqlite`, `agoralar-source-filesystem`, `agoralar-source-sql`,
 `agoralar-source-http`, `agoralar-analyzer-text`.
 Продукт находит их через entry points (`agoralar.storage`, `agoralar.source`)
-и проверяет совместимость с `CONTRACT_VERSION` ядра; сами плагины зависят
-только от `axislar-core`.
+и проверяет совместимость с `CONTRACT_VERSION` ядра. Плагины зависят от
+`axislar-contract` и широкого `axislar-core`: несовместимую пару не разрешит
+pip, а рантайм-проверка остаётся последним рубежом для плагинов,
+поставленных в обход установщика.
 
 ## Быстрый старт
 
